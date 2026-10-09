@@ -8,8 +8,7 @@
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "postinstall": "cd backend && npx prisma generate",
-    "vercel-build": "cd backend && npx prisma generate && cd ../frontend && npm install && npm run build",
+    "vercel-build": "cd backend && npm install && npx prisma generate && cd ../frontend && npm install && npm run build",
     "start": "node backend/src/server.js"
   },
   "devDependencies": {
