@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "cd backend && npx prisma generate && npx prisma db push && node seedOfficialData.js && cd ../frontend && npm run build",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "frontend/dist",
+  "installCommand": "npm install && cd backend && npm install",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -12,7 +13,7 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api|uploads).*)",
       "destination": "/index.html"
     }
   ]
