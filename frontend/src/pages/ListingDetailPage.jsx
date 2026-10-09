@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import RequestModal from '../components/RequestModal';
 import ReportModal from '../components/ReportModal';
+import Avatar from '../components/Avatar';
 import ProductCard from '../components/ProductCard';
 
 export default function ListingDetailPage() {
@@ -300,10 +301,11 @@ export default function ListingDetailPage() {
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={listing.seller.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'}
+                  <Avatar
+                    src={listing.seller.avatar}
                     alt={listing.seller.name}
-                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-100"
+                    className="w-12 h-12 rounded-xl ring-2 ring-slate-100"
+                    iconClassName="w-6 h-6"
                   />
                   <div>
                     <h4 className="font-bold text-sm text-slate-900">{listing.seller.name}</h4>

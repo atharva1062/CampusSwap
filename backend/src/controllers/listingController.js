@@ -1,4 +1,5 @@
 const prisma = require('../config/db');
+const { checkContent } = require('../services/aiModerator');
 
 /**
  * Get all listings with advanced filtering, search, and sorting
@@ -21,6 +22,11 @@ const getListings = async (req, res) => {
     } = req.query;
 
     const where = {};
+
+    // Only show approved listings publicly unless requested by the seller or admin
+    if (!sellerId && (!req.user || req.user.role !== 'ADMIN')) {
+      where.moderationStatus = 'APPROVED';
+    }
 
     // Filter by status (unless 'all' is requested)
     if (status && status !== 'ALL') {
@@ -288,6 +294,17 @@ const createListing = async (req, res) => {
       finalImageUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
     }
 
+    // Run AI content moderation check
+    const aiCheck = checkContent({
+      title,
+      description,
+      swapPreferences,
+      price: parseFloat(price) || 0.0,
+    });
+
+    const isFlagged = aiCheck.isFlagged;
+    const moderationStatus = isFlagged ? 'FLAGGED_AI' : 'APPROVED';
+
     const listing = await prisma.listing.create({
       data: {
         sellerId: req.user.id,
@@ -298,7 +315,10 @@ const createListing = async (req, res) => {
         originalPrice: originalPrice ? parseFloat(originalPrice) : null,
         condition: condition.toUpperCase(),
         type: type.toUpperCase(),
-        status: 'AVAILABLE',
+        status: isFlagged ? 'RESERVED' : 'AVAILABLE',
+        moderationStatus,
+        isFlaggedByAI: isFlagged,
+        aiFlagReason: isFlagged ? aiCheck.reason : null,
         imageUrl: finalImageUrl,
         pickupLocation: pickupLocation || 'Campus Library / Student Center',
         rentDuration: type.toUpperCase() === 'RENT' ? rentDuration || 'per day' : null,
@@ -307,10 +327,47 @@ const createListing = async (req, res) => {
       include: {
         category: true,
         seller: {
-          select: { id: true, name: true, email: true, avatar: true },
+          select: { id: true, name: true, email: true, avatar: true, collegeId: true, phone: true },
         },
       },
     });
+
+    // If AI flagged prohibited/misleading content, alert all Admins immediately & auto-create report
+    if (isFlagged) {
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+
+      for (const admin of admins) {
+        await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            title: '🚨 Misleading/Prohibited Item Flagged by AI',
+            message: `Student ${req.user.name} (${req.user.collegeId || req.user.email} - Phone: ${req.user.phone || 'N/A'}) posted restricted item: "${title}". Reason: ${aiCheck.reason}`,
+            type: 'SYSTEM',
+            link: '/admin',
+          },
+        });
+      }
+
+      await prisma.report.create({
+        data: {
+          reporterId: req.user.id,
+          listingId: listing.id,
+          reason: 'INAPPROPRIATE',
+          description: `AI Detection Flag: ${aiCheck.reason}`,
+          status: 'PENDING',
+        },
+      });
+
+      return res.status(201).json({
+        success: true,
+        isFlagged: true,
+        message: 'Item flagged by AI moderation for prohibited/misleading content and sent to campus admin for review.',
+        listing,
+      });
+    }
 
     return res.status(201).json({
       success: true,

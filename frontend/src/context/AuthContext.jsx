@@ -33,9 +33,9 @@ export const AuthProvider = ({ children }) => {
     fetchCurrentUser();
   }, []);
 
-  // Login handler
-  const login = async (email, password) => {
-    const res = await API.post('/auth/login', { email, password });
+  // Login handler (Supports College Email or ERP ID + compulsory registered phone verification)
+  const login = async (identifier, password, phone) => {
+    const res = await API.post('/auth/login', { identifier, password, phone });
     if (res.data.success) {
       const { token: receivedToken, user: receivedUser } = res.data;
       localStorage.setItem('campusswap_token', receivedToken);
@@ -47,9 +47,59 @@ export const AuthProvider = ({ children }) => {
     return { success: false, message: res.data.message };
   };
 
+  // Verify student against pre-loaded college database
+  const verifyStudent = async (identifier, phone) => {
+    const res = await API.post('/auth/verify-student', { identifier, phone });
+    return res.data;
+  };
+
+  // First-time student activation with password creation
+  const activateStudent = async ({ identifier, phone, password, confirmPassword, avatar }) => {
+    const res = await API.post('/auth/activate-student', {
+      identifier,
+      phone,
+      password,
+      confirmPassword,
+      avatar,
+    });
+    if (res.data.success) {
+      const { token: receivedToken, user: receivedUser } = res.data;
+      localStorage.setItem('campusswap_token', receivedToken);
+      localStorage.setItem('campusswap_user', JSON.stringify(receivedUser));
+      setToken(receivedToken);
+      setUser(receivedUser);
+      return { success: true, user: receivedUser };
+    }
+    return { success: false, message: res.data.message };
+  };
+
+  // Change password handler (e.g. after first login)
+  const changePassword = async (currentPassword, newPassword) => {
+    const res = await API.post('/auth/change-password', { currentPassword, newPassword });
+    if (res.data.success) {
+      setUser((prev) => ({ ...prev, hasChangedPassword: true }));
+      return { success: true, message: res.data.message };
+    }
+    return { success: false, message: res.data.message };
+  };
+
   // Register handler
   const register = async (userData) => {
     const res = await API.post('/auth/register', userData);
+    if (res.data.success) {
+      const { token: receivedToken, user: receivedUser } = res.data;
+      localStorage.setItem('campusswap_token', receivedToken);
+      localStorage.setItem('campusswap_user', JSON.stringify(receivedUser));
+      setToken(receivedToken);
+      setUser(receivedUser);
+      return { success: true, user: receivedUser };
+    }
+    return { success: false, message: res.data.message };
+  };
+
+  // Google / Gmail Login handler
+  const googleLogin = async ({ email, name, avatar, collegeId, phone }) => {
+    const res = await API.post('/auth/google', { email, name, avatar, collegeId, phone });
     if (res.data.success) {
       const { token: receivedToken, user: receivedUser } = res.data;
       localStorage.setItem('campusswap_token', receivedToken);
@@ -91,6 +141,10 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!user,
         isAdmin,
         login,
+        verifyStudent,
+        activateStudent,
+        changePassword,
+        googleLogin,
         register,
         logout,
         updateProfile,

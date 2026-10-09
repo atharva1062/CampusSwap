@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import Avatar from './Avatar';
 
 export default function Navbar() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -56,21 +57,43 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-sm">
+      {/* Official College Institutional Header Strip */}
+      <div className="bg-gradient-to-r from-brand-900 via-brand-800 to-slate-900 text-white text-[11px] py-1 px-4 border-b border-brand-700/50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold tracking-tight">
+            <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse"></span>
+            <span className="truncate">Dr. D. Y. Patil Institute of Technology, Pimpri, Pune (DIT Pimpri)</span>
+          </div>
+          <div className="hidden sm:flex items-center gap-3 text-[10px] text-slate-300 font-semibold">
+            <span className="text-accent-300 font-bold">NAAC 'A++' Grade</span>
+            <span>•</span>
+            <span>SPPU Affiliated</span>
+            <span>•</span>
+            <span>Approved by AICTE</span>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
           {/* Brand Logo */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-5 h-5 stroke-[2.5]" />
+          <Link to="/" className="flex items-center gap-3 shrink-0 group">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-700 to-brand-500 flex items-center justify-center text-white shadow-md shadow-brand-700/20 group-hover:scale-105 transition-transform border border-accent-400/40">
+              <ArrowLeftRight className="w-6 h-6 stroke-[2.5] text-accent-200" />
             </div>
             <div>
-              <span className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-1">
-                Campus<span className="text-brand-600">Swap</span>
-              </span>
-              <span className="text-[10px] font-semibold text-slate-400 block -mt-1 tracking-wider uppercase">
-                Student Marketplace
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
+                  DIT <span className="text-brand-600">CampusSwap</span>
+                </span>
+                <span className="hidden md:inline-block px-1.5 py-0.2 bg-accent-100 text-accent-800 border border-accent-300 rounded text-[9px] font-black uppercase">
+                  Pimpri
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 block -mt-0.5 tracking-wider uppercase">
+                Official Student Marketplace
               </span>
             </div>
           </Link>
@@ -83,15 +106,15 @@ export default function Navbar() {
             <div className="relative w-full">
               <input
                 type="text"
-                placeholder="Search textbooks, calculators, cycles, lab coats, hostel items..."
+                placeholder="Search DIT textbooks, drafters, calculators, cycles, lab manuals..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-24 py-2 text-sm bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-brand-500 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-500/15 transition-all text-slate-800 placeholder:text-slate-400"
+                className="w-full pl-10 pr-24 py-2 text-xs font-semibold bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-brand-500 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-500/15 transition-all text-slate-800 placeholder:text-slate-400"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <button
                 type="submit"
-                className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-semibold shadow-xs transition-colors"
+                className="absolute right-1 top-1/2 -translate-y-1/2 px-3.5 py-1 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-bold shadow-xs transition-colors"
               >
                 Search
               </button>
@@ -232,13 +255,10 @@ export default function Navbar() {
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
                   >
-                    <img
-                      src={
-                        user?.avatar ||
-                        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'
-                      }
+                    <Avatar
+                      src={user?.avatar}
                       alt={user?.name}
-                      className="w-8 h-8 rounded-lg object-cover ring-2 ring-brand-500/20"
+                      className="w-8 h-8 rounded-lg"
                     />
                     <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
                   </button>

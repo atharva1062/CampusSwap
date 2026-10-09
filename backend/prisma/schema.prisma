@@ -21,6 +21,8 @@ model User {
   campus       String?  @default("Main Campus")
   role         String   @default("STUDENT") // STUDENT, ADMIN
   isVerified   Boolean  @default(true)
+  hasChangedPassword Boolean @default(false)
+  isFlagged    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -34,6 +36,19 @@ model User {
   sentMessages    Message[]       @relation("SentMessages")
   receivedMessages Message[]      @relation("ReceivedMessages")
   savedItems      SavedItem[]
+}
+
+model StudentRoster {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  collegeId   String   @unique
+  phone       String?
+  department  String?  @default("General")
+  year        String?  @default("1st Year")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Category {
@@ -55,7 +70,10 @@ model Listing {
   originalPrice   Float?
   condition       String        @default("GOOD") // BRAND_NEW, LIKE_NEW, GOOD, FAIR
   type            String        @default("SELL") // SELL, RENT, SWAP
-  status          String        @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, RENTED, SWAPPED
+  status          String        @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, RENTED, SWAPPED, REMOVED
+  moderationStatus String       @default("APPROVED") // APPROVED, FLAGGED_AI, REMOVED_BY_ADMIN
+  isFlaggedByAI   Boolean       @default(false)
+  aiFlagReason    String?
   imageUrl        String?
   additionalImages String?      // JSON string array of extra image urls
   pickupLocation  String?       @default("Campus Library / Student Center")

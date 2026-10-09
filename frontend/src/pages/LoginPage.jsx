@@ -12,20 +12,53 @@ import {
   BookOpen,
   X,
   CheckCircle2,
-  HelpCircle
+  HelpCircle,
+  AlertCircle,
+  UserCheck,
+  Building2,
+  User,
+  Smartphone,
+  Eye,
+  EyeOff,
+  GraduationCap
 } from 'lucide-react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { DEPARTMENTS } from '../constants/departments';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, register, verifyStudent, activateStudent } = useAuth();
   const { showToast } = useNotification();
   const navigate = useNavigate();
 
+  // Mode: 'login' | 'signup'
+  const [authMode, setAuthMode] = useState('login');
+
+  // Login Form States
   const [identifier, setIdentifier] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Sign Up / Verification Form States
+  const [signupIdentifier, setSignupIdentifier] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifiedStudent, setVerifiedStudent] = useState(null); // When student is verified in roster
+  const [verificationError, setVerificationError] = useState('');
+  const [allowManualSignup, setAllowManualSignup] = useState(false);
+
+  // Student Account Creation Fields (Shown after verification)
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupCollegeId, setSignupCollegeId] = useState('');
+  const [signupDepartment, setSignupDepartment] = useState(DEPARTMENTS[3]); // Default to Computer Engineering
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
 
   // Forgot / Reset Password Modal State
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -34,17 +67,27 @@ export default function LoginPage() {
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  // Handle Standard Login
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    if (!identifier || !password) {
+      showToast('Please enter your College Email / Student ERP ID and Password.', 'error');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await login(identifier, password);
+      const res = await login(identifier, password, phone);
       if (res.success) {
-        showToast(`Welcome back, ${res.user.name}! 🎓`, 'success');
-        navigate('/dashboard');
+        showToast(`Welcome to DIT CampusSwap, ${res.user.name}! 🎓`, 'success');
+        if (res.user.role === 'ADMIN') {
+          navigate('/admin');
+        } else {
+          navigate('/browse');
+        }
       } else {
-        showToast(res.message || 'Invalid credentials.', 'error');
+        showToast(res.message || 'Login failed. Please check your credentials.', 'error');
       }
     } catch (err) {
       showToast(
@@ -56,19 +99,136 @@ export default function LoginPage() {
     }
   };
 
-  // 1-Click Demo Login Helper
-  const handleQuickLogin = async (demoId, demoPass) => {
-    setIdentifier(demoId);
-    setPassword(demoPass);
-    setLoading(true);
+  // Step 1: Verify Student ERP ID or College Email
+  const handleVerifyStudentId = async (e) => {
+    if (e) e.preventDefault();
+    const cleanId = signupIdentifier.trim();
+    if (!cleanId) {
+      showToast('Please enter your Student ERP ID or College Email.', 'error');
+      return;
+    }
+
+    setVerifyLoading(true);
+    setVerificationError('');
+    setVerifiedStudent(null);
+    setAllowManualSignup(false);
+
     try {
-      const res = await login(demoId, demoPass);
-      if (res.success) {
-        showToast(`Logged in as ${res.user.name}!`, 'success');
-        navigate('/dashboard');
+      const res = await verifyStudent(cleanId, signupPhone);
+      if (res.success && res.student) {
+        setVerifiedStudent(res.student);
+        setSignupName(res.student.name || '');
+        setSignupEmail(res.student.email || (cleanId.includes('@') ? cleanId : `${cleanId.toLowerCase()}@college.edu`));
+        setSignupCollegeId(res.student.collegeId || cleanId.toUpperCase());
+        if (res.student.phone) setSignupPhone(res.student.phone);
+        if (res.student.department) {
+          // Match with DEPARTMENTS array or fallback
+          const matchedDept = DEPARTMENTS.find(
+            (d) => d.toLowerCase() === res.student.department.toLowerCase()
+          );
+          setSignupDepartment(matchedDept || res.student.department);
+        }
+        showToast(`Verified! Welcome ${res.student.name}. Please create your password below.`, 'success');
+      } else {
+        setVerificationError(res.message || 'Student record not found in college database.');
+        setAllowManualSignup(true);
       }
     } catch (err) {
-      showToast('Quick demo login error.', 'error');
+      const msg = err.response?.data?.message || 'Student record not found in college database.';
+      setVerificationError(msg);
+      setAllowManualSignup(true);
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // Step 2: Handle Password Creation & Account Completion
+  const handleCompleteAccountCreation = async (e) => {
+    e.preventDefault();
+
+    if (!signupPassword || signupPassword.length < 6) {
+      showToast('Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    if (signupPassword !== signupConfirmPassword) {
+      showToast('Passwords do not match. Please re-check.', 'error');
+      return;
+    }
+
+    if (signupPhone && signupPhone.replace(/\D/g, '').length > 0 && signupPhone.replace(/\D/g, '').length < 10) {
+      showToast('If provided, mobile phone number must be 10 digits.', 'error');
+      return;
+    }
+
+    setSignupLoading(true);
+
+    try {
+      let res;
+      if (verifiedStudent) {
+        // Activate existing roster student
+        res = await activateStudent({
+          identifier: signupCollegeId || signupIdentifier,
+          phone: signupPhone,
+          password: signupPassword,
+          confirmPassword: signupConfirmPassword,
+          name: signupName,
+          department: signupDepartment,
+        });
+      } else {
+        // Direct register
+        res = await register({
+          name: signupName,
+          email: signupEmail,
+          collegeId: signupCollegeId,
+          phone: signupPhone,
+          password: signupPassword,
+          campus: signupDepartment,
+        });
+      }
+
+      if (res.success) {
+        showToast(`Account successfully created! Welcome ${res.user.name} 🎓`, 'success');
+        navigate('/browse');
+      } else {
+        showToast(res.message || 'Registration failed.', 'error');
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to complete registration.', 'error');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  // Reset verification to enter another ID
+  const handleResetVerification = () => {
+    setVerifiedStudent(null);
+    setVerificationError('');
+    setAllowManualSignup(false);
+    setSignupPassword('');
+    setSignupConfirmPassword('');
+  };
+
+  // 1-Click Instant Demo Login
+  const handleQuickLogin = async (demoId, demoPass, demoPhone = '') => {
+    setIdentifier(demoId);
+    setPassword(demoPass);
+    if (demoPhone) setPhone(demoPhone);
+    setLoading(true);
+    try {
+      const res = await login(demoId, demoPass, demoPhone);
+      if (res.success) {
+        showToast(`Logged in as ${res.user.name}! 🎓`, 'success');
+        if (res.user.role === 'ADMIN') {
+          navigate('/admin');
+        } else {
+          navigate('/browse');
+        }
+      } else {
+        showToast(res.message || 'Login failed.', 'error');
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Quick login error.', 'error');
     } finally {
       setLoading(false);
     }
@@ -93,6 +253,7 @@ export default function LoginPage() {
       if (res.data.success) {
         showToast(res.data.message, 'success');
         setIdentifier(resetIdentifier);
+        setPhone(resetPhone);
         setPassword(resetNewPassword);
         setForgotModalOpen(false);
         setResetIdentifier('');
@@ -101,7 +262,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       showToast(
-        err.response?.data?.message || 'Verification failed. Please check your details.',
+        err.response?.data?.message || 'Verification failed. Please check your ERP ID & Phone.',
         'error'
       );
     } finally {
@@ -110,133 +271,476 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-      <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200/90 shadow-card space-y-6">
+    <div className="min-h-[88vh] flex items-center justify-center px-4 py-8 bg-gradient-to-b from-brand-50/40 via-slate-50 to-amber-50/20">
+      <div className="max-w-lg w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xl space-y-6">
         
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-emerald-400 mx-auto flex items-center justify-center text-white shadow-md shadow-brand-500/20">
-            <ArrowLeftRight className="w-6 h-6 stroke-[2.5]" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-700 to-brand-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-brand-700/20 border border-accent-400/40">
+            <ArrowLeftRight className="w-7 h-7 stroke-[2.5] text-accent-200" />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Log in to CampusSwap
-          </h1>
-          <p className="text-xs text-slate-500">
-            Enter your College Email or Student ERP ID to access your campus account
-          </p>
-        </div>
-
-        {/* 1-Click Demo Accounts */}
-        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-500" /> Instant Demo Logins
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-accent-700 bg-accent-50 px-2.5 py-0.5 rounded-full border border-accent-200 inline-block mb-1">
+              Dr. D. Y. Patil Institute of Technology, Pimpri
             </span>
-            <span className="text-[10px] text-brand-600 font-semibold">ERP / Mobile No. Enabled</span>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              DIT Student Portal
+            </h1>
           </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('CS-2024-042', '9823456789')}
-              className="px-2.5 py-2 bg-white hover:bg-brand-50 hover:border-brand-300 border border-slate-200 rounded-xl text-left transition-all group"
-            >
-              <span className="text-xs font-bold text-slate-800 block group-hover:text-brand-600">
-                Atharva (Student ERP)
-              </span>
-              <span className="text-[10px] text-slate-500 block font-mono">ERP: CS-2024-042</span>
-              <span className="text-[9px] text-slate-400 block">Pass: Mobile No.</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('admin@college.edu', 'admin123')}
-              className="px-2.5 py-2 bg-white hover:bg-rose-50 hover:border-rose-300 border border-slate-200 rounded-xl text-left transition-all group"
-            >
-              <span className="text-xs font-bold text-slate-800 block group-hover:text-rose-600">
-                Admin (Moderator)
-              </span>
-              <span className="text-[10px] text-slate-500 block">admin@college.edu</span>
-              <span className="text-[9px] text-slate-400 block">Pass: admin123</span>
-            </button>
-          </div>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Access is strictly restricted to verified <span className="font-bold text-slate-700">College Email</span> and <span className="font-bold text-slate-700">Student ERP IDs</span>.
+          </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* Email or ERP Input */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              College Email or Student ERP / Roll No.
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                required
-                placeholder="atharva@college.edu or CS-2024-042"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-              <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            </div>
-          </div>
-
-          {/* Password Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Password
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setResetIdentifier(identifier);
-                  setForgotModalOpen(true);
-                }}
-                className="text-[11px] font-bold text-brand-600 hover:text-brand-700 hover:underline"
-              >
-                Forgot Password?
-              </button>
-            </div>
-
-            <div className="relative">
-              <input
-                type="password"
-                required
-                placeholder="Mobile No. or Custom Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            </div>
-
-            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-              <HelpCircle className="w-3 h-3 text-slate-400 shrink-0" />
-              Default password is your registered Mobile No.
-            </p>
-          </div>
-
+        {/* Mode Switcher: Log In vs Sign Up */}
+        <div className="grid grid-cols-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80">
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50 mt-2"
+            type="button"
+            onClick={() => {
+              setAuthMode('login');
+              handleResetVerification();
+            }}
+            className={`py-2 text-xs font-black rounded-xl transition-all ${
+              authMode === 'login'
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            {loading ? 'Authenticating...' : 'Log In to CampusSwap'}
-            <ArrowRight className="w-4 h-4" />
+            Student Log In
           </button>
-        </form>
+          <button
+            type="button"
+            onClick={() => setAuthMode('signup')}
+            className={`py-2 text-xs font-black rounded-xl transition-all ${
+              authMode === 'signup'
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Create Account / Sign Up
+          </button>
+        </div>
 
-        {/* Footer Link */}
-        <div className="text-center pt-2 border-t border-slate-100">
-          <p className="text-xs text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-bold text-brand-600 hover:underline">
-              Join CampusSwap here
-            </Link>
-          </p>
+        {/* ========================================================= */}
+        {/* MODE 1: LOG IN */}
+        {/* ========================================================= */}
+        {authMode === 'login' && (
+          <div className="space-y-5 animate-in fade-in">
+            {/* Quick Test Logins */}
+            <div className="bg-brand-50/50 p-3.5 rounded-2xl border border-brand-200/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-accent-500" /> Instant Test Accounts
+                </span>
+                <span className="text-[10px] text-brand-800 font-bold bg-white px-2 py-0.5 rounded-md border border-brand-200">
+                  1-Click
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('admin1062@gmail.com', 'Swap@482223')}
+                  className="p-2 bg-white hover:bg-rose-50 hover:border-rose-300 border border-slate-200 rounded-xl text-left transition-all group col-span-2 sm:col-span-1 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-rose-700 block">Admin Portal</span>
+                    <ShieldCheck className="w-3 h-3 text-rose-600" />
+                  </div>
+                  <span className="text-[9px] text-slate-400 block font-mono">admin1062@gmail.com</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('20241042', '9823456789', '9823456789')}
+                  className="p-2 bg-white hover:bg-brand-50 hover:border-brand-300 border border-slate-200 rounded-xl text-left transition-all group shadow-2xs"
+                >
+                  <span className="text-[11px] font-bold text-slate-800 block group-hover:text-brand-600">
+                    Atharva (Comp Engg)
+                  </span>
+                  <span className="text-[9px] text-slate-400 block font-mono">ERP: 20241042</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('20231108', '9811122233', '9811122233')}
+                  className="p-2 bg-white hover:bg-brand-50 hover:border-brand-300 border border-slate-200 rounded-xl text-left transition-all group shadow-2xs"
+                >
+                  <span className="text-[11px] font-bold text-slate-800 block group-hover:text-brand-600">
+                    Rahul (Mech Engg)
+                  </span>
+                  <span className="text-[9px] text-slate-400 block font-mono">ERP: 20231108</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Login Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  8-Digit ERP ID or College Email *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 20241042 or 20241042.dit@dypvp.edu.in"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                  <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>Registered Mobile No. (Optional)</span>
+                  <span className="text-[10px] text-slate-400 font-normal lowercase">optional</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9823456789"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                  <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Password *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetIdentifier(identifier);
+                      setResetPhone(phone);
+                      setForgotModalOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-brand-600 hover:text-brand-700 hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Mobile No. (Default) or Custom Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 p-2 rounded-lg">
+                  <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Default initial password is your registered <strong className="text-amber-900">Mobile Number</strong>.</span>
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50 mt-2"
+              >
+                {loading ? 'Authenticating with DIT...' : 'Log In to DIT CampusSwap'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* MODE 2: SIGN UP WITH STEP-BY-STEP ID VERIFICATION */}
+        {/* ========================================================= */}
+        {authMode === 'signup' && (
+          <div className="space-y-4 animate-in fade-in">
+            
+            {/* STEP 1: Enter ERP ID / Email & Verify */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-brand-600" />
+                  Step 1: Enter College ERP ID / Email
+                </span>
+                {verifiedStudent && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Verified
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                  8-Digit Student ERP ID or College Email *
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      disabled={!!verifiedStudent}
+                      placeholder="e.g. 20241042 or 20241042.dit@dypvp.edu.in"
+                      value={signupIdentifier}
+                      onChange={(e) => setSignupIdentifier(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !verifiedStudent) {
+                          e.preventDefault();
+                          handleVerifyStudentId();
+                        }
+                      }}
+                      className="w-full pl-9 pr-3 py-2.5 text-xs font-semibold bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-600"
+                    />
+                    <BookOpen className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+
+                  {!verifiedStudent ? (
+                    <button
+                      type="button"
+                      disabled={verifyLoading || !signupIdentifier.trim()}
+                      onClick={handleVerifyStudentId}
+                      className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+                    >
+                      {verifyLoading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <UserCheck className="w-4 h-4" />
+                      )}
+                      Verify
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResetVerification}
+                      className="px-3 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all shrink-0"
+                    >
+                      Change ID
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Verification Feedback Banner */}
+              {verifiedStudent && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="text-xs font-bold text-emerald-900">
+                      College Student Record Verified: {verifiedStudent.name}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-emerald-800 flex flex-wrap gap-x-3 gap-y-1">
+                    <span>ERP: <strong>{verifiedStudent.collegeId}</strong></span>
+                    <span>Dept: <strong>{verifiedStudent.department}</strong></span>
+                    {verifiedStudent.phone && <span>Mobile: <strong>{verifiedStudent.phone}</strong></span>}
+                  </div>
+
+                  {verifiedStudent.isAlreadyRegistered && (
+                    <div className="mt-2 pt-2 border-t border-emerald-200 flex items-center justify-between">
+                      <span className="text-[10px] text-emerald-700">Account already has a password set.</span>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('login')}
+                        className="text-[10px] font-bold text-brand-700 underline"
+                      >
+                        Go to Log In →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Error banner if not in roster */}
+              {verificationError && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs text-amber-800 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    Student Record Notice
+                  </div>
+                  <p className="text-[11px]">{verificationError}</p>
+                  <p className="text-[10px] text-slate-600 pt-1">
+                    You can still fill in your details below to create your campus account.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* STEP 2: PASSWORD CREATION BAR & PROFILE DETAILS */}
+            {/* Appears once student is verified OR if student chooses manual registration */}
+            {(verifiedStudent || allowManualSignup) && (
+              <form onSubmit={handleCompleteAccountCreation} className="space-y-4 pt-1 animate-in fade-in slide-in-from-top-2">
+                
+                <div className="border-t border-slate-200 pt-3">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                    <KeyRound className="w-4 h-4 text-accent-600" />
+                    Step 2: Student Details & Create Password
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Full Name *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Atharva Patil"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      8-Digit Student ERP ID *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 20241042"
+                      value={signupCollegeId || signupIdentifier}
+                      onChange={(e) => setSignupCollegeId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Mobile Number (Optional)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        placeholder="e.g. 9823456789"
+                        value={signupPhone}
+                        onChange={(e) => setSignupPhone(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                      <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Official College Email *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. 20241042.dit@dypvp.edu.in"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-brand-600" />
+                    Department *
+                  </label>
+                  <select
+                    value={signupDepartment}
+                    onChange={(e) => setSignupDepartment(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  >
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Password Creation Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-brand-50/40 p-3.5 rounded-2xl border border-brand-200/80">
+                  <div>
+                    <label className="block text-xs font-bold text-brand-900 uppercase tracking-wider mb-1">
+                      Create Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showSignupPassword ? 'text' : 'password'}
+                        required
+                        placeholder="Min. 6 characters"
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showSignupPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-brand-900 uppercase tracking-wider mb-1">
+                      Confirm Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showSignupPassword ? 'text' : 'password'}
+                        required
+                        placeholder="Confirm password"
+                        value={signupConfirmPassword}
+                        onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={signupLoading}
+                  className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50 mt-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {signupLoading ? 'Creating Student Account...' : 'Complete Registration & Activate Account'}
+                </button>
+              </form>
+            )}
+
+          </div>
+        )}
+
+        {/* Footer info */}
+        <div className="text-center pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+          <span className="flex items-center gap-1 font-semibold text-brand-700">
+            <Building2 className="w-3.5 h-3.5" /> DIT Pimpri, Pune
+          </span>
+          <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5" /> Verified Campus Only
+          </span>
         </div>
 
       </div>
@@ -245,23 +749,22 @@ export default function LoginPage() {
       {forgotModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
-            
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-brand-800 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-brand-400" />
+                <KeyRound className="w-5 h-5 text-accent-300" />
                 <h3 className="font-bold text-sm">Reset Student Password</h3>
               </div>
               <button
                 onClick={() => setForgotModalOpen(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-white"
+                className="p-1 rounded-full text-slate-300 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleResetPassword} className="p-6 space-y-4">
-              <p className="text-xs text-slate-600">
-                Verify your registered student ERP ID or College Email along with your Mobile Number to create a new custom password.
+              <p className="text-xs text-slate-500">
+                Verify your registered Student ERP ID or College Email along with your matching Mobile Number to set a new password.
               </p>
 
               <div>
@@ -287,7 +790,7 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <input
-                    type="text"
+                    type="tel"
                     required
                     placeholder="e.g. 9823456789"
                     value={resetPhone}
@@ -296,9 +799,6 @@ export default function LoginPage() {
                   />
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Used for identity verification on campus records
-                </span>
               </div>
 
               <div>

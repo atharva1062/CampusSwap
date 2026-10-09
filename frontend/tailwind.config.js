@@ -8,40 +8,37 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#16a34a',
-          600: '#15803d',
-          700: '#166534',
-          800: '#14532d',
-          900: '#052e16',
+          50: '#fef2f2',
+          100: '#fee2e2',
+          200: '#fecaca',
+          300: '#fca5a5',
+          400: '#f87171',
+          500: '#b22b2f', // DIT Signature Crimson Red
+          600: '#991b1b', // DIT Royal Maroon
+          700: '#7f1d1d', // DIT Deep Wine Maroon
+          800: '#5c1414',
+          900: '#450a0a',
         },
-        primary: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
+        dit: {
+          maroon: '#b22b2f',
+          darkmaroon: '#7a0c0c',
+          gold: '#d1a550',
+          goldlight: '#fef3c7',
+          navy: '#0f172a',
+          card: '#ffffff',
+          bg: '#fcfbfa',
         },
         accent: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#d1a550', // DIT Gold Accent
+          600: '#b48a38',
+          700: '#8f6c25',
+          800: '#71541c',
+          900: '#533c13',
         }
       },
       fontFamily: {

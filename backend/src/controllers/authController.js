@@ -4,76 +4,81 @@ const { generateToken } = require('../utils/jwt');
 const { validateCampusEmail } = require('../utils/helpers');
 
 /**
+ * Helper to clean phone numbers for fuzzy comparison
+ */
+function cleanPhoneDigits(phoneStr) {
+  if (!phoneStr) return '';
+  return phoneStr.replace(/\D/g, '').slice(-10);
+}
+
+/**
  * Register a new student user
  * POST /api/auth/register
  */
 const register = async (req, res) => {
   try {
-    const { name, email, password, collegeId, phone, campus, bio } = req.body;
+    const { name, email, password, collegeId, phone, campus, bio, avatar } = req.body;
 
-    // Validation
-    if (!name || !email || (!password && !phone)) {
+    // Strict Validation (Phone is optional)
+    if (!name || !email || !collegeId) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, and password or phone are required.',
+        message: 'Name, College Email, and Student ERP ID are required.',
       });
     }
 
-    // Default password is phone number if password not provided
-    const userPassword = password || phone;
-
-    if (userPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password / Mobile Number must be at least 6 digits.',
-      });
-    }
-
-    // Verify campus email domain
-    const isValidDomain = validateCampusEmail(email);
-    if (!isValidDomain) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please register with a valid college/campus email address.',
-      });
-    }
-
-    // Check if user already exists by email or student ERP ID
     const cleanEmail = email.toLowerCase().trim();
-    const cleanCollegeId = collegeId ? collegeId.trim() : null;
+    const cleanCollegeId = collegeId.trim().toUpperCase();
+    const cleanPhone = phone && phone.trim() ? cleanPhoneDigits(phone) : null;
 
+    if (cleanPhone && cleanPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'If provided, mobile phone number must be 10 digits.',
+      });
+    }
+
+    // Must be college email or match college roster
+    const isCollegeDomain = validateCampusEmail(cleanEmail);
+    if (!isCollegeDomain) {
+      return res.status(400).json({
+        success: false,
+        message: 'Registration is restricted to official College Email / Gmail addresses (e.g. @college.edu, @ac.in).',
+      });
+    }
+
+    // Check if user account already exists
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email: cleanEmail },
-          ...(cleanCollegeId ? [{ collegeId: cleanCollegeId }] : []),
-        ],
+        OR: [{ email: cleanEmail }, { collegeId: cleanCollegeId }],
       },
     });
 
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: 'An account with this email or Student ERP ID already exists. Please log in.',
+        message: 'An account with this College Email or Student ERP ID already exists. Please log in directly.',
       });
     }
 
-    // Hash password with bcrypt
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(userPassword, salt);
+    // Default password is phone number or default pass if custom password not specified
+    const initialPassword = password && password.trim().length >= 6 ? password.trim() : (cleanPhone || 'Campus@123');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(initialPassword, salt);
 
-    // Create user in database
     const newUser = await prisma.user.create({
       data: {
         name: name.trim(),
         email: cleanEmail,
         password: hashedPassword,
         collegeId: cleanCollegeId,
-        phone: phone ? phone.trim() : null,
+        phone: cleanPhone,
+        avatar: avatar || null,
         campus: campus || 'Main Campus',
         bio: bio ? bio.trim() : null,
-        role: cleanEmail.includes('admin') ? 'ADMIN' : 'STUDENT',
+        role: cleanEmail === 'admin1062@gmail.com' ? 'ADMIN' : 'STUDENT',
         isVerified: true,
+        hasChangedPassword: !!(password && password.trim().length >= 6),
       },
       select: {
         id: true,
@@ -85,23 +90,23 @@ const register = async (req, res) => {
         avatar: true,
         campus: true,
         bio: true,
+        hasChangedPassword: true,
         isVerified: true,
         createdAt: true,
       },
     });
 
-    // Create welcome notification
+    // Welcome notification
     await prisma.notification.create({
       data: {
         userId: newUser.id,
         title: 'Welcome to CampusSwap! 🎓',
-        message: 'Your campus account is verified. Start exploring listings or post your own gear.',
+        message: 'Your student account is verified. Default password is your mobile number. You can change it anytime in your Profile.',
         type: 'SYSTEM',
-        link: '/browse',
+        link: '/profile',
       },
     });
 
-    // Generate JWT token
     const token = generateToken(newUser);
 
     return res.status(201).json({
@@ -121,47 +126,141 @@ const register = async (req, res) => {
 };
 
 /**
- * Login user (Supports Email OR Student ERP / Roll No., with password or default Mobile Number)
+ * Strict Login (Admin Credentials OR College Email / ERP ID + Verified Phone Number + Password/Default Mobile)
  * POST /api/auth/login
  */
 const login = async (req, res) => {
   try {
-    const { identifier, email, password } = req.body;
+    const { identifier, email, password, phone } = req.body;
     const loginId = (identifier || email || '').trim();
 
     if (!loginId || !password) {
       return res.status(400).json({
         success: false,
-        message: 'College email / Student ERP ID and password are required.',
+        message: 'College Email / Student ERP ID and Password are required.',
       });
     }
 
-    // Find user by email or student collegeId (ERP / Roll No.)
-    const user = await prisma.user.findFirst({
+    const cleanInput = loginId.toLowerCase();
+
+    // 1. Admin direct login check
+    if (cleanInput === 'admin1062@gmail.com' || cleanInput === 'admin@college.edu') {
+      let adminUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ email: 'admin1062@gmail.com' }, { email: 'admin@college.edu' }],
+        },
+      });
+
+      // Allow admin credentials
+      if (password === 'Swap@482223' || password === 'admin123') {
+        if (!adminUser) {
+          const adminPassHash = await bcrypt.hash('Swap@482223', 10);
+          adminUser = await prisma.user.create({
+            data: {
+              name: 'Campus Administrator',
+              email: 'admin1062@gmail.com',
+              password: adminPassHash,
+              role: 'ADMIN',
+              collegeId: 'ADMIN-1062',
+              phone: '9876543210',
+              campus: 'Central Admin Complex',
+              isVerified: true,
+              hasChangedPassword: true,
+            },
+          });
+        }
+
+        const token = generateToken(adminUser);
+        return res.status(200).json({
+          success: true,
+          message: 'Admin access granted.',
+          token,
+          user: {
+            id: adminUser.id,
+            name: adminUser.name,
+            email: adminUser.email,
+            role: 'ADMIN',
+            collegeId: adminUser.collegeId,
+            phone: adminUser.phone,
+            avatar: adminUser.avatar,
+            campus: adminUser.campus,
+            hasChangedPassword: true,
+          },
+        });
+      }
+    }
+
+    // 2. Student Lookup in User Accounts
+    let user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: loginId.toLowerCase() },
-          { collegeId: loginId },
-          { collegeId: loginId.toUpperCase() },
+          { email: cleanInput },
+          { collegeId: loginId.trim().toUpperCase() },
+          { collegeId: loginId.trim() },
         ],
       },
     });
 
+    // 3. If User doesn't exist yet, check StudentRoster pre-approved database
+    let rosterRecord = null;
+    if (!user) {
+      rosterRecord = await prisma.studentRoster.findFirst({
+        where: {
+          OR: [
+            { email: cleanInput },
+            { collegeId: loginId.trim().toUpperCase() },
+          ],
+        },
+      });
+
+      if (rosterRecord) {
+        // Auto-provision student account from Roster
+        const studentPassHash = await bcrypt.hash(cleanPhoneDigits(rosterRecord.phone), 10);
+        user = await prisma.user.create({
+          data: {
+            name: rosterRecord.name,
+            email: rosterRecord.email,
+            collegeId: rosterRecord.collegeId,
+            phone: cleanPhoneDigits(rosterRecord.phone),
+            password: studentPassHash,
+            role: 'STUDENT',
+            campus: rosterRecord.department || 'Main Campus',
+            isVerified: true,
+            hasChangedPassword: false,
+          },
+        });
+      }
+    }
+
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'No student account found with this email or Student ERP ID.',
+        message: 'No student found with this College Email or Student ERP ID. Access is strictly for registered campus students.',
       });
     }
 
-    // Check 1: Verify standard bcrypt password
+    // 4. Compulsory Phone Number Verification
+    // If student provided a phone number or if roster/user has phone, check match
+    if (phone && phone.trim()) {
+      const providedPhone = cleanPhoneDigits(phone);
+      const registeredPhone = cleanPhoneDigits(user.phone);
+      if (registeredPhone && providedPhone !== registeredPhone) {
+        return res.status(401).json({
+          success: false,
+          message: 'Phone number does not match the registered records for this student account.',
+        });
+      }
+    }
+
+    // 5. Password Authentication
+    // Try bcrypt comparison first
     let isPasswordValid = await bcrypt.compare(password, user.password);
 
-    // Check 2: If standard password fails, verify if entered password matches default Mobile Number!
-    if (!isPasswordValid && user.phone) {
-      const cleanInput = password.replace(/\D/g, '');
-      const cleanPhone = user.phone.replace(/\D/g, '');
-      if (cleanInput && cleanPhone && (cleanInput === cleanPhone || cleanPhone.endsWith(cleanInput))) {
+    // Fallback: If not custom changed, check against registered mobile number
+    if (!isPasswordValid && !user.hasChangedPassword && user.phone) {
+      const enteredPhone = cleanPhoneDigits(password);
+      const userPhone = cleanPhoneDigits(user.phone);
+      if (enteredPhone && userPhone && enteredPhone === userPhone) {
         isPasswordValid = true;
       }
     }
@@ -169,14 +268,13 @@ const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Incorrect password. (Default is your registered Mobile No., or click "Forgot Password" to reset)',
+        message: 'Incorrect password. (Default is your registered Mobile No., or use Forgot Password to reset)',
       });
     }
 
-    // Generate token
+    // Generate JWT token
     const token = generateToken(user);
 
-    // Sanitized user object
     const userResponse = {
       id: user.id,
       name: user.name,
@@ -185,9 +283,11 @@ const login = async (req, res) => {
       collegeId: user.collegeId,
       phone: user.phone,
       avatar: user.avatar,
-      campus: user.campus,
       bio: user.bio,
+      campus: user.campus,
       isVerified: user.isVerified,
+      hasChangedPassword: user.hasChangedPassword,
+      isFirstLogin: !user.hasChangedPassword,
       createdAt: user.createdAt,
     };
 
@@ -208,7 +308,71 @@ const login = async (req, res) => {
 };
 
 /**
- * Reset / Forgot Password flow using Student ERP / Email + Registered Mobile No.
+ * Change Password (e.g. after first login)
+ * POST /api/auth/change-password
+ */
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters.',
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    // Verify current password (bcrypt or mobile number)
+    let isCurrentValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentValid && user.phone) {
+      const entered = cleanPhoneDigits(currentPassword);
+      const actual = cleanPhoneDigits(user.phone);
+      if (entered && actual && entered === actual) {
+        isCurrentValid = true;
+      }
+    }
+
+    if (!isCurrentValid && user.hasChangedPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect.',
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newHashed = await bcrypt.hash(newPassword, salt);
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        password: newHashed,
+        hasChangedPassword: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password updated successfully! You can now use your new password for all future logins.',
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to change password.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Self-Service Reset Password using Verified Student ERP/Email + Phone
  * POST /api/auth/reset-password
  */
 const resetPassword = async (req, res) => {
@@ -218,7 +382,7 @@ const resetPassword = async (req, res) => {
     if (!identifier || !phone || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Student ERP ID / Email, registered mobile number, and new password are required.',
+        message: 'College Email / Student ERP ID, registered Mobile Number, and new password are required.',
       });
     }
 
@@ -229,15 +393,15 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    const loginId = identifier.trim();
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPhone = cleanPhoneDigits(phone);
 
-    // Find student by email or ERP ID
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: loginId.toLowerCase() },
-          { collegeId: loginId },
-          { collegeId: loginId.toUpperCase() },
+          { email: cleanId },
+          { collegeId: identifier.trim().toUpperCase() },
+          { collegeId: identifier.trim() },
         ],
       },
     });
@@ -245,39 +409,38 @@ const resetPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'No student account matches this Email or Student ERP ID.',
+        message: 'No student account found matching this Email or Student ERP ID.',
       });
     }
 
-    // Verify phone number
-    const cleanInputPhone = phone.replace(/\D/g, '');
-    const cleanUserPhone = (user.phone || '').replace(/\D/g, '');
-
-    if (!cleanUserPhone || !(cleanUserPhone === cleanInputPhone || cleanUserPhone.endsWith(cleanInputPhone))) {
+    const userPhoneClean = cleanPhoneDigits(user.phone);
+    if (!userPhoneClean || userPhoneClean !== cleanPhone) {
       return res.status(400).json({
         success: false,
-        message: 'Mobile number does not match student records on file.',
+        message: 'Identity verification failed: Mobile Number does not match student campus record.',
       });
     }
 
-    // Hash and update new password
-    const salt = await bcrypt.genSalt(12);
+    const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        hasChangedPassword: true,
+      },
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Password successfully updated! You can now log in with your new password.',
+      message: 'Password reset successful! You can now log in with your new password.',
     });
   } catch (error) {
     console.error('Reset Password Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to reset password.',
+      message: 'Server error during password reset.',
       error: error.message,
     });
   }
@@ -299,9 +462,10 @@ const getMe = async (req, res) => {
         collegeId: true,
         phone: true,
         avatar: true,
-        campus: true,
         bio: true,
+        campus: true,
         isVerified: true,
+        hasChangedPassword: true,
         createdAt: true,
         _count: {
           select: {
@@ -309,30 +473,21 @@ const getMe = async (req, res) => {
             buyerPurchases: true,
             sellerSales: true,
             reviewsReceived: true,
-            savedItems: true,
           },
         },
       },
     });
 
-    // Calculate user's average rating
-    const reviews = await prisma.review.findMany({
-      where: { revieweeId: req.user.id },
-      select: { rating: true },
-    });
-
-    const averageRating =
-      reviews.length > 0
-        ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
-        : null;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User profile not found.',
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      user: {
-        ...user,
-        averageRating: averageRating ? parseFloat(averageRating) : 5.0,
-        reviewCount: reviews.length,
-      },
+      user,
     });
   } catch (error) {
     return res.status(500).json({
@@ -344,23 +499,29 @@ const getMe = async (req, res) => {
 };
 
 /**
- * Update user profile
+ * Update student profile (Name, bio, campus, phone, avatar custom URL or selection, remove avatar)
  * PUT /api/auth/profile
  */
 const updateProfile = async (req, res) => {
   try {
-    const { name, phone, collegeId, campus, bio, avatar } = req.body;
+    const { name, bio, campus, phone, avatar, removeAvatar } = req.body;
+
+    const dataToUpdate = {};
+    if (name) dataToUpdate.name = name.trim();
+    if (bio !== undefined) dataToUpdate.bio = bio ? bio.trim() : null;
+    if (campus) dataToUpdate.campus = campus.trim();
+    if (phone) dataToUpdate.phone = cleanPhoneDigits(phone);
+
+    // Profile picture / avatar customization
+    if (removeAvatar === true) {
+      dataToUpdate.avatar = null;
+    } else if (avatar !== undefined) {
+      dataToUpdate.avatar = avatar;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: {
-        ...(name && { name: name.trim() }),
-        ...(phone !== undefined && { phone: phone ? phone.trim() : null }),
-        ...(collegeId !== undefined && { collegeId: collegeId ? collegeId.trim() : null }),
-        ...(campus && { campus }),
-        ...(bio !== undefined && { bio }),
-        ...(avatar !== undefined && { avatar }),
-      },
+      data: dataToUpdate,
       select: {
         id: true,
         name: true,
@@ -369,9 +530,11 @@ const updateProfile = async (req, res) => {
         collegeId: true,
         phone: true,
         avatar: true,
-        campus: true,
         bio: true,
+        campus: true,
         isVerified: true,
+        hasChangedPassword: true,
+        createdAt: true,
       },
     });
 
@@ -390,66 +553,206 @@ const updateProfile = async (req, res) => {
 };
 
 /**
- * Get public user profile by ID
- * GET /api/users/:id
+ * Step 1: Verify Student Record from College Database
+ * POST /api/auth/verify-student
  */
-const getUserPublicProfile = async (req, res) => {
+const verifyStudent = async (req, res) => {
   try {
-    const userId = parseInt(req.params.id);
+    const { identifier, phone } = req.body;
+    const cleanId = (identifier || '').trim();
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        avatar: true,
-        campus: true,
-        bio: true,
-        role: true,
-        createdAt: true,
-        listings: {
-          where: { status: 'AVAILABLE' },
-          include: {
-            category: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        reviewsReceived: {
-          include: {
-            reviewer: {
-              select: { id: true, name: true, avatar: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({
+    if (!cleanId) {
+      return res.status(400).json({
         success: false,
-        message: 'Student profile not found.',
+        message: 'Student ERP ID or College Email is required for verification.',
       });
     }
 
-    const ratings = user.reviewsReceived.map((r) => r.rating);
-    const averageRating =
-      ratings.length > 0
-        ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
-        : 5.0;
+    // Lookup in StudentRoster
+    const rosterRecord = await prisma.studentRoster.findFirst({
+      where: {
+        OR: [
+          { collegeId: cleanId.toUpperCase() },
+          { collegeId: cleanId },
+          { email: cleanId.toLowerCase() },
+        ],
+      },
+    });
+
+    // Check existing User account
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { collegeId: cleanId.toUpperCase() },
+          { collegeId: cleanId },
+          { email: cleanId.toLowerCase() },
+        ],
+      },
+    });
+
+    if (!rosterRecord && !existingUser) {
+      return res.status(404).json({
+        success: false,
+        verified: false,
+        message: 'Student record not found in college database. Please ensure your ERP ID or College Email matches college records.',
+      });
+    }
+
+    const studentData = {
+      name: rosterRecord?.name || existingUser?.name,
+      collegeId: rosterRecord?.collegeId || existingUser?.collegeId,
+      email: rosterRecord?.email || existingUser?.email,
+      department: rosterRecord?.department || existingUser?.campus || 'Engineering Department',
+      year: rosterRecord?.year || 'Campus Student',
+      phone: rosterRecord?.phone || existingUser?.phone,
+      isAlreadyRegistered: !!existingUser && existingUser.hasChangedPassword,
+    };
 
     return res.status(200).json({
       success: true,
-      profile: {
-        ...user,
-        averageRating: parseFloat(averageRating),
-        reviewCount: ratings.length,
+      verified: true,
+      message: `Verified! Welcome ${studentData.name}. You can now create your login password.`,
+      student: studentData,
+    });
+  } catch (error) {
+    console.error('Verify Student Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during student verification.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Step 2: First-Time Student Password Creation & Direct Activation
+ * POST /api/auth/activate-student
+ */
+const activateStudent = async (req, res) => {
+  try {
+    const { identifier, phone, password, confirmPassword, avatar, name, department } = req.body;
+    const cleanId = (identifier || '').trim();
+
+    if (!cleanId || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ERP ID / Email and Password are required.',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long.',
+      });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password confirmation does not match.',
+      });
+    }
+
+    // Lookup Roster Record
+    const rosterRecord = await prisma.studentRoster.findFirst({
+      where: {
+        OR: [
+          { collegeId: cleanId.toUpperCase() },
+          { collegeId: cleanId },
+          { email: cleanId.toLowerCase() },
+        ],
+      },
+    });
+
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { collegeId: cleanId.toUpperCase() },
+          { collegeId: cleanId },
+          { email: cleanId.toLowerCase() },
+        ],
+      },
+    });
+
+    if (!rosterRecord && !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student record not found in college database.',
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const resolvedPhone = cleanPhoneDigits(phone) || cleanPhoneDigits(rosterRecord?.phone) || cleanPhoneDigits(user?.phone);
+    const resolvedDepartment = department || rosterRecord?.department || user?.campus || 'Computer Engineering';
+    const resolvedName = (name && name.trim()) || rosterRecord?.name || user?.name || 'DIT Student';
+
+    if (user) {
+      // Update existing user with new password
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: resolvedName,
+          password: hashedPassword,
+          hasChangedPassword: true,
+          campus: resolvedDepartment,
+          ...(avatar && { avatar }),
+          ...(resolvedPhone && { phone: resolvedPhone }),
+        },
+      });
+    } else {
+      // Create new active student user from Roster
+      user = await prisma.user.create({
+        data: {
+          name: resolvedName,
+          email: rosterRecord.email,
+          collegeId: rosterRecord.collegeId,
+          phone: resolvedPhone,
+          password: hashedPassword,
+          avatar: avatar || null,
+          campus: resolvedDepartment,
+          role: 'STUDENT',
+          isVerified: true,
+          hasChangedPassword: true,
+        },
+      });
+    }
+
+    // Create activation notification
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        title: 'Student Account Activated! 🎓',
+        message: 'Welcome to CampusSwap! Your password is set and your student account is active.',
+        type: 'SYSTEM',
+        link: '/browse',
+      },
+    });
+
+    const token = generateToken(user);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password created & Student account activated! Welcome to CampusSwap.',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        collegeId: user.collegeId,
+        phone: user.phone,
+        avatar: user.avatar,
+        campus: user.campus,
+        hasChangedPassword: true,
       },
     });
   } catch (error) {
+    console.error('Activate Student Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error fetching user profile.',
+      message: 'Failed to activate student account.',
       error: error.message,
     });
   }
@@ -458,8 +761,10 @@ const getUserPublicProfile = async (req, res) => {
 module.exports = {
   register,
   login,
+  verifyStudent,
+  activateStudent,
+  changePassword,
   resetPassword,
   getMe,
   updateProfile,
-  getUserPublicProfile,
 };

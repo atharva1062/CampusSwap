@@ -47,14 +47,28 @@ export default function App() {
             <Navbar />
             <main className="flex-1">
               <Routes>
-                {/* Public Pages */}
+                {/* Public Gateway Pages */}
                 <Route path="/" element={<HomePage />} />
-                <Route path="/browse" element={<BrowsePage />} />
-                <Route path="/listings/:id" element={<ListingDetailPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
 
-                {/* Protected Student Pages */}
+                {/* Protected Student Pages (Login Compulsory) */}
+                <Route
+                  path="/browse"
+                  element={
+                    <ProtectedRoute>
+                      <BrowsePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/listings/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ListingDetailPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/create-listing"
                   element={

@@ -12,6 +12,7 @@ import {
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import Avatar from '../components/Avatar';
 
 export default function MessagesPage() {
   const { user, isAuthenticated } = useAuth();
@@ -171,13 +172,11 @@ export default function MessagesPage() {
                       isSelected ? 'bg-brand-50/80 border-l-4 border-brand-600' : ''
                     }`}
                   >
-                    <img
-                      src={
-                        conv.user.avatar ||
-                        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100'
-                      }
+                    <Avatar
+                      src={conv.user.avatar}
                       alt={conv.user.name}
-                      className="w-11 h-11 rounded-2xl object-cover ring-1 ring-slate-200 shrink-0"
+                      className="w-11 h-11 rounded-2xl ring-1 ring-slate-200"
+                      iconClassName="w-6 h-6"
                     />
 
                     <div className="flex-1 min-w-0">
@@ -223,13 +222,11 @@ export default function MessagesPage() {
               {/* Chat Header */}
               <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white z-10 shadow-2xs">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      activeUser.avatar ||
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'
-                    }
+                  <Avatar
+                    src={activeUser.avatar}
                     alt={activeUser.name}
-                    className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200"
+                    className="w-10 h-10 rounded-xl ring-1 ring-slate-200"
+                    iconClassName="w-5 h-5"
                   />
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">

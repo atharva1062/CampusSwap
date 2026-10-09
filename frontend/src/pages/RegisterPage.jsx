@@ -107,13 +107,49 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Student ERP / Roll No. *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. CS-2024-042"
+                  value={collegeId}
+                  onChange={(e) => setCollegeId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+                <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Registered Mobile No. *
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 9823456789"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+                <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Password *
               </label>
               <div className="relative">
                 <input
                   type="password"
                   required
-                  placeholder="Min. 6 chars"
+                  placeholder="Min. 6 chars (or Mobile No.)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
@@ -124,24 +160,6 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Student ID / Roll No
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="e.g. CS-2024-042"
-                  value={collegeId}
-                  onChange={(e) => setCollegeId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-                <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Campus Location
               </label>
               <input
@@ -150,22 +168,6 @@ export default function RegisterPage() {
                 onChange={(e) => setCampus(e.target.value)}
                 className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Phone Number
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              </div>
             </div>
           </div>
 

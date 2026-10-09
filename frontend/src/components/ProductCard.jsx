@@ -4,6 +4,7 @@ import { Bookmark, MapPin, Eye, ArrowLeftRight, Sparkles, Clock } from 'lucide-r
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import Avatar from './Avatar';
 
 export default function ProductCard({ listing, onSaveToggle }) {
   const { isAuthenticated } = useAuth();
@@ -185,13 +186,11 @@ export default function ProductCard({ listing, onSaveToggle }) {
             {/* Seller Avatar */}
             {listing.seller && (
               <div className="flex items-center gap-1.5" title={`Listed by ${listing.seller.name}`}>
-                <img
-                  src={
-                    listing.seller.avatar ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100'
-                  }
+                <Avatar
+                  src={listing.seller.avatar}
                   alt={listing.seller.name}
-                  className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200"
+                  className="w-5 h-5"
+                  iconClassName="w-3 h-3"
                 />
                 <span className="text-xs text-slate-500 font-medium truncate max-w-[80px]">
                   {listing.seller.name.split(' ')[0]}

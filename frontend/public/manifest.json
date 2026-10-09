@@ -1,0 +1,21 @@
+{
+  "short_name": "CampusSwap",
+  "name": "CampusSwap - Student Marketplace",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=192",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=512",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#16a34a",
+  "display": "standalone",
+  "orientation": "portrait"
+}

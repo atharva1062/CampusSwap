@@ -12,6 +12,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const statsRoutes = require('./routes/statsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
@@ -42,12 +43,30 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/admin', adminRoutes);
 
-// 404 Route handler
+// 404 Route handler for API endpoints
 app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: `Endpoint ${req.originalUrl} not found on this server.`,
+  });
+});
+
+// Serve frontend production build if available
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+app.get('*', (req, res, next) => {
+  if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
+    return next();
+  }
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      // Fallback if frontend dist not built
+      res.status(404).send('CampusSwap Frontend build not found. Please run "npm run build" in the frontend directory.');
+    }
   });
 });
 

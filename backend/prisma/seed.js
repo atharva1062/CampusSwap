@@ -15,86 +15,111 @@ async function main() {
   await prisma.transaction.deleteMany();
   await prisma.listing.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.studentRoster.deleteMany();
   await prisma.user.deleteMany();
 
   console.log('🧹 Cleaned existing records.');
 
-  // Password hash for seed users
-  const defaultPassword = await bcrypt.hash('password123', 10);
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  // Password hashes
+  const adminPassword = await bcrypt.hash('Swap@482223', 10);
+  const p1 = await bcrypt.hash('9823456789', 10);
+  const p2 = await bcrypt.hash('9811122233', 10);
+  const p3 = await bcrypt.hash('9777788899', 10);
+  const p4 = await bcrypt.hash('9900011223', 10);
+  const p5 = await bcrypt.hash('9866655544', 10);
 
-  // 1. Create Users
+  // 1. Create Pre-Approved Student Roster
+  const rosterStudents = [
+    { name: 'Atharva Patil', email: '20241042.dit@dypvp.edu.in', collegeId: '20241042', phone: '9823456789', department: 'Computer Engineering', year: '3rd Year' },
+    { name: 'Rahul Sharma', email: '20231108.dit@dypvp.edu.in', collegeId: '20231108', phone: '9811122233', department: 'Mechanical Engineering', year: '4th Year' },
+    { name: 'Priya Mehta', email: '20241019.dit@dypvp.edu.in', collegeId: '20241019', phone: '9777788899', department: 'Electronics & Telecommunication', year: '3rd Year' },
+    { name: 'Sneha Kulkarni', email: '20251077.dit@dypvp.edu.in', collegeId: '20251077', phone: '9900011223', department: 'Artificial Intelligence & Data Science', year: '2nd Year' },
+    { name: 'Rohan Deshmukh', email: '20241099.dit@dypvp.edu.in', collegeId: '20241099', phone: '9866655544', department: 'Information Technology', year: '3rd Year' },
+    { name: 'Test Student 1062', email: '20241062.dit@dypvp.edu.in', collegeId: '20241062', phone: '9823456780', department: 'Computer Engineering', year: '3rd Year' },
+  ];
+
+  for (const s of rosterStudents) {
+    await prisma.studentRoster.create({ data: s });
+  }
+  console.log('📋 Seeded Official Student Roster entries.');
+
+  // 2. Create Users
   const admin = await prisma.user.create({
     data: {
-      name: 'Campus Admin',
-      email: 'admin@college.edu',
+      name: 'Campus Administrator',
+      email: 'admin1062@gmail.com',
       password: adminPassword,
       role: 'ADMIN',
-      collegeId: 'ADM-001',
-      campus: 'North Campus Admin Block',
-      phone: '+91 98765 43210',
+      collegeId: 'ADMIN-1062',
+      campus: 'North Campus Admin Complex',
+      phone: '9876543210',
       bio: 'Campus safety and marketplace moderator.',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=250',
+      avatar: null,
+      hasChangedPassword: true,
     },
   });
 
   const atharva = await prisma.user.create({
     data: {
       name: 'Atharva Patil',
-      email: 'atharva@college.edu',
-      password: defaultPassword,
+      email: '20241042.dit@dypvp.edu.in',
+      password: p1,
       role: 'STUDENT',
-      collegeId: 'CS-2024-042',
+      collegeId: '20241042',
       campus: 'Engineering Block 3',
-      phone: '+91 98234 56789',
+      phone: '9823456789',
       bio: '3rd Year CS Student | Building full-stack apps & selling tech gear & textbooks.',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=250',
+      avatar: null,
+      hasChangedPassword: false,
     },
   });
 
   const rahul = await prisma.user.create({
     data: {
       name: 'Rahul Sharma',
-      email: 'rahul@college.edu',
-      password: defaultPassword,
+      email: '20231108.dit@dypvp.edu.in',
+      password: p2,
       role: 'STUDENT',
-      collegeId: 'MECH-2023-108',
+      collegeId: '20231108',
       campus: 'Hostel Block B',
-      phone: '+91 98111 22233',
+      phone: '9811122233',
       bio: 'Mechanical Engineering Senior. Cycling enthusiast and gadget geek.',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=250',
+      avatar: null,
+      hasChangedPassword: false,
     },
   });
 
   const priya = await prisma.user.create({
     data: {
       name: 'Priya Mehta',
-      email: 'priya@college.edu',
-      password: defaultPassword,
+      email: '20241019.dit@dypvp.edu.in',
+      password: p3,
       role: 'STUDENT',
-      collegeId: 'EE-2024-019',
+      collegeId: '20241019',
       campus: 'Girls Hostel A',
-      phone: '+91 97777 88899',
+      phone: '9777788899',
       bio: 'Electronics & Communication. Love reading novels, sharing exam notes, and eco-friendly swaps.',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=250',
+      avatar: null,
+      hasChangedPassword: false,
     },
   });
 
   const sneha = await prisma.user.create({
     data: {
       name: 'Sneha Kulkarni',
-      email: 'sneha@college.edu',
-      password: defaultPassword,
+      email: '20251077.dit@dypvp.edu.in',
+      password: p4,
       role: 'STUDENT',
-      collegeId: 'BIO-2025-077',
+      collegeId: '20251077',
       campus: 'Science Complex',
-      phone: '+91 99000 11223',
+      phone: '9900011223',
       bio: 'Biotech Junior. Always looking to rent lab manuals or swap semester course packs.',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      avatar: null,
+      hasChangedPassword: false,
     },
   });
 
-  console.log('✅ Created 5 Seed Users (1 Admin, 4 Students).');
+  console.log('✅ Created Seed Users (Admin + 4 Students).');
 
   // 2. Create Categories
   const categoriesData = [

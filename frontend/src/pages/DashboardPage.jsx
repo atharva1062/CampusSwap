@@ -16,6 +16,7 @@ import {
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductCard from '../components/ProductCard';
+import Avatar from '../components/Avatar';
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
@@ -73,10 +74,11 @@ export default function DashboardPage() {
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-700 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <img
-            src={user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'}
+          <Avatar
+            src={user?.avatar}
             alt={user?.name}
-            className="w-16 h-16 rounded-2xl object-cover ring-2 ring-brand-400"
+            className="w-16 h-16 rounded-2xl ring-2 ring-brand-400"
+            iconClassName="w-8 h-8"
           />
           <div className="space-y-1">
             <div className="flex items-center gap-2">

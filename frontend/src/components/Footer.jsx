@@ -52,21 +52,26 @@ export default function Footer() {
 
           {/* Safety & Trust (BMC) */}
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Safety & Trust</h4>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li>• In-person campus meetups at Library/Canteen</li>
-              <li>• Inspect item condition prior to completion</li>
-              <li>• Star rating & review after every deal</li>
-              <li>• Instant reporting & fraud moderation</li>
-            </ul>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">DIT Campus Location</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Dr. D. Y. Patil Institute of Technology<br />
+              Sant Tukaram Nagar, Pimpri, Pune - 411018<br />
+              Maharashtra, India
+            </p>
+            <div className="mt-3 text-[11px] text-accent-400 font-semibold">
+              <span>Official Portal: </span>
+              <a href="https://engg.dypvp.edu.in" target="_blank" rel="noreferrer" className="underline hover:text-accent-300">
+                engg.dypvp.edu.in
+              </a>
+            </div>
           </div>
 
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-          <p>© {new Date().getFullYear()} CampusSwap. Built for college students.</p>
-          <p className="flex items-center gap-1">
-            Built with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 inline" /> for college campus pair programming.
+          <p>© {new Date().getFullYear()} DIT CampusSwap • Dr. D. Y. Patil Institute of Technology, Pimpri, Pune.</p>
+          <p className="flex items-center gap-1 text-accent-400/90 font-medium">
+            <span>Empowerment Through Knowledge</span>
           </p>
         </div>
       </div>
