@@ -53,22 +53,27 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// Serve frontend production build if available
-const frontendDistPath = path.join(__dirname, '../../frontend/dist');
-app.use(express.static(frontendDistPath));
+// Serve frontend production build if available (local/VPS only — Vercel CDN handles this)
+if (process.env.VERCEL !== '1') {
+  const fs = require('fs');
+  const rootDist = path.join(__dirname, '../../../dist');
+  const featureDist = path.join(__dirname, '../../frontend/dist');
+  const frontendDistPath = fs.existsSync(path.join(rootDist, 'index.html')) ? rootDist : featureDist;
 
-app.get('*', (req, res, next) => {
-  if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
-    return next();
-  }
-  const indexPath = path.join(frontendDistPath, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      // Fallback if frontend dist not built
-      res.status(404).send('CampusSwap Frontend build not found. Please run "npm run build" in the frontend directory.');
+  app.use(express.static(frontendDistPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
+      return next();
     }
+    const indexPath = path.join(frontendDistPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        res.status(404).send('CampusSwap frontend not built. Run: npm run build');
+      }
+    });
   });
-});
+}
 
 // Global Error Handler
 app.use((err, req, res, next) => {
