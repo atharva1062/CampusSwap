@@ -8,7 +8,8 @@
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "start": "npm run dev"
+    "postinstall": "cd backend && npx prisma generate",
+    "start": "node backend/src/server.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
