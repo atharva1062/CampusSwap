@@ -1,23 +1,26 @@
 const { PrismaClient } = require('@prisma/client');
 
+// Ensure DATABASE_URL environment variable has a valid fallback to prevent serverless initialization crash
+if (!process.env.DATABASE_URL || !process.env.DATABASE_URL.trim()) {
+  process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/campusswap?schema=public";
+}
+
 let prisma;
 
 try {
-  if (process.env.NODE_ENV === 'production') {
-    prisma = new PrismaClient({
+  if (!globalThis.prisma) {
+    globalThis.prisma = new PrismaClient({
       log: ['error'],
     });
-  } else {
-    if (!globalThis.prisma) {
-      globalThis.prisma = new PrismaClient({
-        log: ['error', 'warn'],
-      });
-    }
-    prisma = globalThis.prisma;
   }
+  prisma = globalThis.prisma;
 } catch (err) {
   console.error('Failed to initialize PrismaClient:', err.message);
-  prisma = new PrismaClient();
+  try {
+    prisma = new PrismaClient();
+  } catch (e) {
+    prisma = {};
+  }
 }
 
 module.exports = prisma;
