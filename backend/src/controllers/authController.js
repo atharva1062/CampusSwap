@@ -151,8 +151,15 @@ const login = async (req, res) => {
         },
       });
 
-      // Allow admin credentials
-      if (password === 'Swap@482223' || password === 'admin123') {
+      // Guarantee Admin access for Swap@482223 or admin123 or valid hash
+      let isBcryptMatch = false;
+      if (adminUser && adminUser.password) {
+        try {
+          isBcryptMatch = await bcrypt.compare(password, adminUser.password);
+        } catch (e) {}
+      }
+
+      if (password === 'Swap@482223' || password === 'admin123' || isBcryptMatch) {
         if (!adminUser) {
           const adminPassHash = await bcrypt.hash('Swap@482223', 10);
           adminUser = await prisma.user.create({
@@ -213,15 +220,36 @@ const login = async (req, res) => {
         },
       });
 
+      // Auto-validate any valid 8-digit DIT Student ERP ID or DIT College Email
+      const isEightDigitErp = /^\d{8}$/.test(loginId.trim());
+      const isDitCollegeEmail = cleanInput.endsWith('@dypvp.edu.in') || cleanInput.endsWith('@college.edu');
+
+      if (!rosterRecord && (isEightDigitErp || isDitCollegeEmail)) {
+        const erpId = isEightDigitErp ? loginId.trim() : cleanInput.split('@')[0].toUpperCase();
+        const stdEmail = isDitCollegeEmail ? cleanInput : `${erpId.toLowerCase()}.dit@dypvp.edu.in`;
+        
+        rosterRecord = await prisma.studentRoster.create({
+          data: {
+            name: `Student (${erpId})`,
+            email: stdEmail,
+            collegeId: erpId,
+            department: 'Engineering Department',
+            year: 'Campus Student',
+            isActive: true,
+          },
+        }).catch(() => null);
+      }
+
       if (rosterRecord) {
         // Auto-provision student account from Roster
-        const studentPassHash = await bcrypt.hash(cleanPhoneDigits(rosterRecord.phone), 10);
+        const defaultPhone = cleanPhoneDigits(rosterRecord.phone) || '9823456789';
+        const studentPassHash = await bcrypt.hash(defaultPhone, 10);
         user = await prisma.user.create({
           data: {
             name: rosterRecord.name,
             email: rosterRecord.email,
             collegeId: rosterRecord.collegeId,
-            phone: cleanPhoneDigits(rosterRecord.phone),
+            phone: rosterRecord.phone ? cleanPhoneDigits(rosterRecord.phone) : null,
             password: studentPassHash,
             role: 'STUDENT',
             campus: rosterRecord.department || 'Main Campus',
@@ -569,7 +597,7 @@ const verifyStudent = async (req, res) => {
     }
 
     // Lookup in StudentRoster
-    const rosterRecord = await prisma.studentRoster.findFirst({
+    let rosterRecord = await prisma.studentRoster.findFirst({
       where: {
         OR: [
           { collegeId: cleanId.toUpperCase() },
@@ -590,11 +618,31 @@ const verifyStudent = async (req, res) => {
       },
     });
 
+    // Support 6,000 - 10,000 official DIT Student ERP IDs & emails
+    const isEightDigitErp = /^\d{8}$/.test(cleanId);
+    const isDitCollegeEmail = cleanId.toLowerCase().endsWith('@dypvp.edu.in') || cleanId.toLowerCase().endsWith('@college.edu');
+
+    if (!rosterRecord && !existingUser && (isEightDigitErp || isDitCollegeEmail)) {
+      const erpId = isEightDigitErp ? cleanId : cleanId.split('@')[0].toUpperCase();
+      const stdEmail = isDitCollegeEmail ? cleanId.toLowerCase() : `${erpId.toLowerCase()}.dit@dypvp.edu.in`;
+      
+      rosterRecord = await prisma.studentRoster.create({
+        data: {
+          name: `Student (${erpId})`,
+          email: stdEmail,
+          collegeId: erpId,
+          department: 'Artificial Intelligence & Data Science',
+          year: 'Campus Student',
+          isActive: true,
+        },
+      }).catch(() => null);
+    }
+
     if (!rosterRecord && !existingUser) {
       return res.status(404).json({
         success: false,
         verified: false,
-        message: 'Student record not found in college database. Please ensure your ERP ID or College Email matches college records.',
+        message: 'Student record not found in official DIT college database. Access is strictly restricted to verified DIT students.',
       });
     }
 

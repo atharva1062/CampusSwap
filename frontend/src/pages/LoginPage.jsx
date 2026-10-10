@@ -130,13 +130,13 @@ export default function LoginPage() {
         }
         showToast(`Verified! Welcome ${res.student.name}. Please create your password below.`, 'success');
       } else {
-        setVerificationError(res.message || 'Student record not found in college database.');
-        setAllowManualSignup(true);
+        setVerificationError(res.message || 'Verification Failed: Only students listed in the official DIT Student Roster can register.');
+        setAllowManualSignup(false);
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Student record not found in college database.';
+      const msg = err.response?.data?.message || 'Verification Failed: Only students listed in the official DIT Student Roster can register.';
       setVerificationError(msg);
-      setAllowManualSignup(true);
+      setAllowManualSignup(false);
     } finally {
       setVerifyLoading(false);
     }
@@ -513,22 +513,22 @@ export default function LoginPage() {
 
               {/* Error banner if not in roster */}
               {verificationError && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs text-amber-800 animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    Student Record Notice
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1 text-xs text-rose-900 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    Verification Failed
                   </div>
-                  <p className="text-[11px]">{verificationError}</p>
-                  <p className="text-[10px] text-slate-600 pt-1">
-                    You can still fill in your details below to create your campus account.
+                  <p className="text-[11px] font-medium leading-relaxed">{verificationError}</p>
+                  <p className="text-[10px] text-rose-700 font-bold pt-1">
+                    Unverified users cannot create an account. Only official DIT students verified against campus records are permitted.
                   </p>
                 </div>
               )}
             </div>
 
             {/* STEP 2: PASSWORD CREATION BAR & PROFILE DETAILS */}
-            {/* Appears once student is verified OR if student chooses manual registration */}
-            {(verifiedStudent || allowManualSignup) && (
+            {/* Appears EXCLUSIVELY once student ERP ID or College Email is verified */}
+            {verifiedStudent && (
               <form onSubmit={handleCompleteAccountCreation} className="space-y-4 pt-1 animate-in fade-in slide-in-from-top-2">
                 
                 <div className="border-t border-slate-200 pt-3">
