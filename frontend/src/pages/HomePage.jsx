@@ -89,7 +89,7 @@ export default function HomePage() {
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[1.1]">
-              Buy, Sell, Rent & <span className="text-brand-600 underline decoration-brand-400 decoration-wavy decoration-2">Swap</span> on Campus
+              Buy, Sell, Rent & <span className="text-brand-600">Swap</span> on Campus
             </h1>
 
             {/* Subtitle */}

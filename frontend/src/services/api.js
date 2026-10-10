@@ -1,10 +1,16 @@
 import axios from 'axios';
 
-// Base API instance
-// In production: VITE_API_URL is set on Vercel (points to your Render backend)
-// In development: falls back to /api which is proxied to localhost:5050
+// Get base URL from env or default to /api
+let rawBaseURL = import.meta.env.VITE_API_URL || '/api';
+if (rawBaseURL.endsWith('/')) {
+  rawBaseURL = rawBaseURL.slice(0, -1);
+}
+if (!rawBaseURL.endsWith('/api') && rawBaseURL.startsWith('http')) {
+  rawBaseURL = `${rawBaseURL}/api`;
+}
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: rawBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },

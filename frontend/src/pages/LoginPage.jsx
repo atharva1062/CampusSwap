@@ -326,54 +326,6 @@ export default function LoginPage() {
         {/* ========================================================= */}
         {authMode === 'login' && (
           <div className="space-y-5 animate-in fade-in">
-            {/* Quick Test Logins */}
-            <div className="bg-brand-50/50 p-3.5 rounded-2xl border border-brand-200/70 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-800 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-accent-500" /> Instant Test Accounts
-                </span>
-                <span className="text-[10px] text-brand-800 font-bold bg-white px-2 py-0.5 rounded-md border border-brand-200">
-                  1-Click
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('admin1062@gmail.com', 'Swap@482223')}
-                  className="p-2 bg-white hover:bg-rose-50 hover:border-rose-300 border border-slate-200 rounded-xl text-left transition-all group col-span-2 sm:col-span-1 shadow-2xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-rose-700 block">Admin Portal</span>
-                    <ShieldCheck className="w-3 h-3 text-rose-600" />
-                  </div>
-                  <span className="text-[9px] text-slate-400 block font-mono">admin1062@gmail.com</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('20241042', '9823456789', '9823456789')}
-                  className="p-2 bg-white hover:bg-brand-50 hover:border-brand-300 border border-slate-200 rounded-xl text-left transition-all group shadow-2xs"
-                >
-                  <span className="text-[11px] font-bold text-slate-800 block group-hover:text-brand-600">
-                    Atharva (Comp Engg)
-                  </span>
-                  <span className="text-[9px] text-slate-400 block font-mono">ERP: 20241042</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('20231108', '9811122233', '9811122233')}
-                  className="p-2 bg-white hover:bg-brand-50 hover:border-brand-300 border border-slate-200 rounded-xl text-left transition-all group shadow-2xs"
-                >
-                  <span className="text-[11px] font-bold text-slate-800 block group-hover:text-brand-600">
-                    Rahul (Mech Engg)
-                  </span>
-                  <span className="text-[9px] text-slate-400 block font-mono">ERP: 20231108</span>
-                </button>
-              </div>
-            </div>
-
             {/* Login Form */}
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
