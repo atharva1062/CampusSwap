@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeftRight,
   Lock,
@@ -31,9 +31,17 @@ export default function LoginPage() {
   const { login, register, verifyStudent, activateStudent } = useAuth();
   const { showToast } = useNotification();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Mode: 'login' | 'signup'
   const [authMode, setAuthMode] = useState('login');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') === 'signup') {
+      setAuthMode('signup');
+    }
+  }, [location]);
 
   // Login Form States
   const [identifier, setIdentifier] = useState('');

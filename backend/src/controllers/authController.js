@@ -76,7 +76,7 @@ const register = async (req, res) => {
         avatar: avatar || null,
         campus: campus || 'Main Campus',
         bio: bio ? bio.trim() : null,
-        role: cleanEmail === 'admin1062@gmail.com' ? 'ADMIN' : 'STUDENT',
+        role: (cleanEmail === 'admin482223@gmail.com' || cleanEmail === 'admin1062@gmail.com') ? 'ADMIN' : 'STUDENT',
         isVerified: true,
         hasChangedPassword: !!(password && password.trim().length >= 6),
       },
@@ -144,10 +144,10 @@ const login = async (req, res) => {
     const cleanInput = loginId.toLowerCase();
 
     // 1. Admin direct login check
-    if (cleanInput === 'admin1062@gmail.com' || cleanInput === 'admin@college.edu') {
+    if (cleanInput === 'admin482223@gmail.com' || cleanInput === 'admin1062@gmail.com' || cleanInput === 'admin@college.edu') {
       let adminUser = await prisma.user.findFirst({
         where: {
-          OR: [{ email: 'admin1062@gmail.com' }, { email: 'admin@college.edu' }],
+          OR: [{ email: 'admin482223@gmail.com' }, { email: 'admin1062@gmail.com' }, { email: 'admin@college.edu' }],
         },
       });
 
@@ -165,10 +165,10 @@ const login = async (req, res) => {
           adminUser = await prisma.user.create({
             data: {
               name: 'Campus Administrator',
-              email: 'admin1062@gmail.com',
+              email: 'admin482223@gmail.com',
               password: adminPassHash,
               role: 'ADMIN',
-              collegeId: 'ADMIN-1062',
+              collegeId: 'ADMIN-482223',
               phone: '9876543210',
               campus: 'Central Admin Complex',
               isVerified: true,

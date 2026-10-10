@@ -47,10 +47,10 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       name: 'Campus Administrator',
-      email: 'admin1062@gmail.com',
+      email: 'admin482223@gmail.com',
       password: adminPassword,
       role: 'ADMIN',
-      collegeId: 'ADMIN-1062',
+      collegeId: 'ADMIN-482223',
       campus: 'North Campus Admin Complex',
       phone: '9876543210',
       bio: 'Campus safety and marketplace moderator.',
