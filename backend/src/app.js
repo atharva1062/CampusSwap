@@ -29,15 +29,29 @@ app.get('/api/health', async (req, res) => {
   let dbStatus = 'disconnected';
   let dbError = null;
   let userCount = 0;
+
   try {
-    const prisma = require('./config/db');
-    userCount = await prisma.user.count();
-    dbStatus = 'connected';
+    let prisma = null;
+    try {
+      prisma = require('./config/db');
+    } catch (importErr) {
+      dbError = 'Prisma Client module load error: ' + importErr.message;
+    }
+
+    if (prisma && prisma.user) {
+      userCount = await prisma.user.count().then(c => {
+        dbStatus = 'connected';
+        return c;
+      }).catch(qErr => {
+        dbError = 'Database query failed: ' + qErr.message;
+        return 0;
+      });
+    }
   } catch (err) {
     dbError = err.message;
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     status: 'online',
     platform: 'CampusSwap API',
     database: dbStatus,
