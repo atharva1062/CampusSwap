@@ -350,7 +350,7 @@ export default function Navbar() {
                   to="/register"
                   className="px-3.5 py-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition-colors"
                 >
-                  Join Campus
+                  Sign Up
                 </Link>
               </div>
             )}

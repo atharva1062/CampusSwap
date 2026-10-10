@@ -384,7 +384,7 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="Mobile No. (Default) or Custom Password"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-10 py-2.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
@@ -398,11 +398,6 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-
-                <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 p-2 rounded-lg">
-                  <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Default initial password is your registered <strong className="text-amber-900">Mobile Number</strong>.</span>
-                </p>
               </div>
 
               <button

@@ -28,9 +28,10 @@ export default function HomePage() {
   const [featuredListings, setFeaturedListings] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stats, setStats] = useState({
-    totalStudents: 1420,
-    totalListings: 86,
-    completedDeals: 320,
+    totalStudents: 0,
+    totalListings: 0,
+    activeListings: 0,
+    completedDeals: 0,
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -135,15 +136,15 @@ export default function HomePage() {
           {/* Highlights & Metrics Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-4xl mx-auto">
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs text-center">
-              <p className="text-2xl sm:text-3xl font-black text-brand-600">{stats.totalStudents}+</p>
+              <p className="text-2xl sm:text-3xl font-black text-brand-600">{stats.totalStudents || 0}</p>
               <p className="text-xs font-medium text-slate-500 mt-1">Verified Students</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs text-center">
-              <p className="text-2xl sm:text-3xl font-black text-slate-900">{stats.activeListings || stats.totalListings || 45}+</p>
+              <p className="text-2xl sm:text-3xl font-black text-slate-900">{stats.activeListings ?? stats.totalListings ?? 0}</p>
               <p className="text-xs font-medium text-slate-500 mt-1">Live Campus Listings</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs text-center">
-              <p className="text-2xl sm:text-3xl font-black text-amber-600">{stats.completedDeals || 120}+</p>
+              <p className="text-2xl sm:text-3xl font-black text-amber-600">{stats.completedDeals || 0}</p>
               <p className="text-xs font-medium text-slate-500 mt-1">Deals Completed</p>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs text-center">
