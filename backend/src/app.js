@@ -25,10 +25,24 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API Root Health Check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'disconnected';
+  let dbError = null;
+  let userCount = 0;
+  try {
+    const prisma = require('./config/db');
+    userCount = await prisma.user.count();
+    dbStatus = 'connected';
+  } catch (err) {
+    dbError = err.message;
+  }
+
   res.status(200).json({
     status: 'online',
     platform: 'CampusSwap API',
+    database: dbStatus,
+    userCount,
+    dbError,
     timestamp: new Date().toISOString(),
   });
 });
