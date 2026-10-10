@@ -1,13 +1,7 @@
 import axios from 'axios';
 
-// Get base URL from env or default to /api
-let rawBaseURL = import.meta.env.VITE_API_URL || '/api';
-if (rawBaseURL.endsWith('/')) {
-  rawBaseURL = rawBaseURL.slice(0, -1);
-}
-if (!rawBaseURL.endsWith('/api') && rawBaseURL.startsWith('http')) {
-  rawBaseURL = `${rawBaseURL}/api`;
-}
+// API base URL — uses env variable if set, else auto-detects
+const rawBaseURL = import.meta.env.VITE_API_URL || 'https://campus-swap-weld.vercel.app/api';
 
 const API = axios.create({
   baseURL: rawBaseURL,

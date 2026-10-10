@@ -1,9 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
 
-// Ensure DATABASE_URL environment variable has a valid fallback to prevent serverless initialization crash
-if (!process.env.DATABASE_URL || !process.env.DATABASE_URL.trim()) {
-  process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/campusswap?schema=public";
-}
 
 let prisma;
 
