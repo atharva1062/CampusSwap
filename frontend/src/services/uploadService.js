@@ -1,12 +1,13 @@
-import API from './api';
+import { storage } from './firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 /**
- * Upload a media file (Photo up to 100MB or Video up to 250MB) directly to Cloudinary.
- * Bypasses Vercel's 4.5MB serverless function limit using a signed direct upload.
+ * Upload a media file (Photo up to 100MB or Video up to 250MB) directly to Firebase Storage.
+ * Completely bypasses Vercel's 4.5MB serverless payload limit and provides permanent URLs.
  *
  * @param {File} file - The file to upload
  * @param {Function} onProgress - Optional callback for upload progress (0 - 100)
- * @returns {Promise<string>} The secure public URL of the uploaded media
+ * @returns {Promise<string>} The public download URL of the uploaded media
  */
 export async function uploadToCloudinary(file, onProgress) {
   if (!file) throw new Error('No file selected for upload.');
@@ -23,35 +24,34 @@ export async function uploadToCloudinary(file, onProgress) {
     );
   }
 
-  // 1. Fetch signed upload credentials from our backend
-  const signRes = await API.get('/upload/sign');
-  if (!signRes.data.success) {
-    throw new Error(signRes.data.message || 'Could not authorize upload with cloud storage.');
-  }
+  // Generate unique filename in Firebase Storage bucket
+  const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+  const filePath = `campus_swap_media/${Date.now()}_${cleanName}`;
+  const storageRef = ref(storage, filePath);
 
-  const { timestamp, signature, folder, cloudName, apiKey } = signRes.data;
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-  // 2. Upload directly from browser to Cloudinary
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('api_key', apiKey);
-  formData.append('timestamp', timestamp);
-  formData.append('signature', signature);
-  formData.append('folder', folder);
-
-  const resourceType = isVideo ? 'video' : 'image';
-  const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
-
-  const response = await fetch(cloudinaryUrl, {
-    method: 'POST',
-    body: formData,
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        if (typeof onProgress === 'function') {
+          onProgress(Math.round(progress));
+        }
+      },
+      (error) => {
+        console.error('Firebase Storage Upload Error:', error);
+        reject(new Error(error.message || 'Failed to upload media to cloud storage.'));
+      },
+      async () => {
+        try {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadUrl);
+        } catch (urlErr) {
+          reject(urlErr);
+        }
+      }
+    );
   });
-
-  const data = await response.json();
-
-  if (!response.ok || data.error) {
-    throw new Error(data.error?.message || 'Failed to upload media to cloud.');
-  }
-
-  return data.secure_url;
 }
