@@ -410,7 +410,7 @@ const createListing = async (req, res) => {
                 <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">${description.substring(0, 150)}...</p>
               </div>
               <p>Visit the marketplace to check it out or make an offer before someone else grabs it!</p>
-              <a href="https://campus-swap-dit.vercel.app/listings/${listing.id}" style="display: inline-block; background-color: #881337; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">View Listing</a>
+              <a href="https://dit-campus-swap.vercel.app/listings/${listing.id}" style="display: inline-block; background-color: #881337; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">View Listing</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 12px 0;" />
               <p style="font-size: 11px; color: #94a3b8; margin: 0;">You received this because you are a verified DIT student on CampusSwap.</p>
             </div>
