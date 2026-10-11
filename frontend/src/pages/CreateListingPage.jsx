@@ -353,27 +353,55 @@ export default function CreateListingPage() {
 
           {/* Image & Video Upload & Preview */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Item Photo or Video
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Item Photo or Video
+              </label>
+              <span className="text-[11px] text-slate-400 font-medium">Upload File or Paste Web Link</span>
+            </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <label className="flex-1 w-full border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-slate-50">
-                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <label className="flex-1 w-full border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-5 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-slate-50">
+                <Upload className="w-7 h-7 text-slate-400 mx-auto mb-1.5" />
                 <span className="text-xs font-bold text-slate-700 block">Click to upload photo or video</span>
                 <span className="text-[11px] text-slate-400">Photos (up to 100MB) • Videos (MP4/WebM up to 250MB)</span>
                 <input type="file" accept="image/*,video/*" onChange={handleFileChange} className="hidden" />
               </label>
 
               {imagePreview && (
-                <div className="w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 shrink-0 relative bg-slate-100 flex items-center justify-center">
+                <div className="w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 shrink-0 relative bg-slate-100 flex items-center justify-center shadow-xs">
                   {imageFile && imageFile.type.startsWith('video/') ? (
                     <video src={imagePreview} className="w-full h-full object-cover" autoPlay muted loop />
                   ) : (
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={() => {
+                        setImagePreview('https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600');
+                      }}
+                    />
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Direct Google/Web Image URL Option */}
+            <div className="space-y-1">
+              <label className="block text-[11px] font-bold text-slate-600">
+                Or paste direct Image / Google Photo URL:
+              </label>
+              <input
+                type="url"
+                placeholder="https://example.com/item-photo.jpg"
+                value={imageUrl}
+                onChange={(e) => {
+                  setImageUrl(e.target.value);
+                  setImagePreview(e.target.value);
+                  setImageFile(null);
+                }}
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
             </div>
 
             {/* Quick Demo Sample Image Selector */}
