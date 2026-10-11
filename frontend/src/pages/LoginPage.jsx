@@ -84,6 +84,10 @@ export default function LoginPage() {
   const [resetPhone, setResetPhone] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [resetOtpCode, setResetOtpCode] = useState('');
+  const [resetOtpSent, setResetOtpSent] = useState(false);
+  const [resetOtpVerified, setResetOtpVerified] = useState(false);
+  const [resetConfirmation, setResetConfirmation] = useState(null);
 
   // Handle Standard Login
   const handleLoginSubmit = async (e) => {
@@ -330,9 +334,67 @@ export default function LoginPage() {
     }
   };
 
+  // Send Firebase Phone SMS OTP for Forgot Password
+  const handleSendResetOtp = async () => {
+    const rawDigits = resetPhone.replace(/\D/g, '');
+    if (rawDigits.length !== 10) {
+      showToast('Please enter your valid 10-digit registered mobile number.', 'error');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const appVerifier = setupRecaptcha();
+      const formattedPhone = `+91${rawDigits}`;
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      setResetConfirmation(confirmation);
+      setResetOtpSent(true);
+      showToast(`Password Reset OTP sent to ${formattedPhone}! Check your phone.`, 'success');
+    } catch (err) {
+      console.error('Reset OTP SMS Error:', err);
+      showToast(err.message || 'Failed to send SMS OTP. Please try again.', 'error');
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // Verify Firebase Phone SMS OTP for Forgot Password
+  const handleVerifyResetOtp = async () => {
+    if (!resetOtpCode || resetOtpCode.trim().length < 6) {
+      showToast('Please enter the 6-digit OTP received on your phone.', 'error');
+      return;
+    }
+
+    if (!resetConfirmation) {
+      showToast('Please request an OTP first.', 'error');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await resetConfirmation.confirm(resetOtpCode.trim());
+      setResetOtpVerified(true);
+      showToast('Phone verified! You can now set your new password.', 'success');
+    } catch (err) {
+      console.error('Verify Reset OTP Error:', err);
+      showToast('Invalid OTP. Please check the code and try again.', 'error');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   // Handle Reset Password Submit
   const handleResetPassword = async (e) => {
     e.preventDefault();
+    if (!resetOtpVerified) {
+      showToast('Please verify your mobile number with OTP first.', 'error');
+      return;
+    }
+
     if (resetNewPassword.length < 6) {
       showToast('New password must be at least 6 characters.', 'error');
       return;
@@ -355,6 +417,9 @@ export default function LoginPage() {
         setResetIdentifier('');
         setResetPhone('');
         setResetNewPassword('');
+        setResetOtpCode('');
+        setResetOtpSent(false);
+        setResetOtpVerified(false);
       }
     } catch (err) {
       showToast(
@@ -905,6 +970,7 @@ export default function LoginPage() {
                   <input
                     type="tel"
                     required
+                    disabled={resetOtpVerified}
                     placeholder="e.g. 9823456789"
                     value={resetPhone}
                     onChange={(e) => setResetPhone(e.target.value)}
@@ -912,6 +978,63 @@ export default function LoginPage() {
                   />
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
+
+                {/* Send & Verify OTP Box */}
+                {!resetOtpVerified && (
+                  <div className="mt-2 p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-900">
+                        Phone Verification Required
+                      </span>
+                      {!resetOtpSent ? (
+                        <button
+                          type="button"
+                          onClick={handleSendResetOtp}
+                          disabled={resetLoading || resetPhone.replace(/\D/g, '').length !== 10}
+                          className="px-2.5 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
+                        >
+                          {resetLoading ? 'Sending...' : 'Send SMS OTP'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSendResetOtp}
+                          disabled={resetLoading}
+                          className="text-[10px] font-bold text-amber-700 underline"
+                        >
+                          Resend OTP
+                        </button>
+                      )}
+                    </div>
+
+                    {resetOtpSent && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          placeholder="6-digit OTP"
+                          value={resetOtpCode}
+                          onChange={(e) => setResetOtpCode(e.target.value)}
+                          className="flex-1 px-3 py-1.5 text-xs font-mono font-bold bg-white border border-amber-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center tracking-widest"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyResetOtp}
+                          disabled={resetLoading || resetOtpCode.length < 6}
+                          className="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
+                        >
+                          {resetLoading ? 'Verifying...' : 'Verify'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {resetOtpVerified && (
+                  <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Mobile number verified via OTP!
+                  </div>
+                )}
               </div>
 
               <div>
@@ -922,10 +1045,11 @@ export default function LoginPage() {
                   <input
                     type="password"
                     required
+                    disabled={!resetOtpVerified}
                     placeholder="Minimum 6 characters"
                     value={resetNewPassword}
                     onChange={(e) => setResetNewPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-500 text-slate-900"
+                    className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-500 text-slate-900 disabled:opacity-50"
                   />
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>

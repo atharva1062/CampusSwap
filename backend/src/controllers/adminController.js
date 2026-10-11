@@ -387,15 +387,12 @@ const removeListing = async (req, res) => {
       });
     }
 
-    // Mark listing as REMOVED_BY_ADMIN and status as REMOVED
-    const updated = await prisma.listing.update({
-      where: { id: listingId },
-      data: {
-        status: 'REMOVED',
-        moderationStatus: 'REMOVED_BY_ADMIN',
-        aiFlagReason: reason || 'Removed by Campus Administrator due to prohibited/misleading content policy violation.',
-      },
-    });
+    // Permanently remove listing and related cascade records from platform
+    await prisma.savedItem.deleteMany({ where: { listingId } });
+    await prisma.message.deleteMany({ where: { listingId } });
+    await prisma.report.deleteMany({ where: { listingId } });
+    await prisma.transaction.deleteMany({ where: { listingId } });
+    await prisma.listing.delete({ where: { id: listingId } });
 
     // Notify seller student of removal & policy warning
     if (sendWarning && listing.sellerId) {
@@ -403,7 +400,7 @@ const removeListing = async (req, res) => {
         data: {
           userId: listing.sellerId,
           title: '⚠️ Listing Removed by Campus Moderator',
-          message: `Your item "${listing.title}" has been removed from CampusSwap for violating campus guidelines: ${reason || 'Misleading/Prohibited item'}. Please adhere to campus swap policies.`,
+          message: `Your item "${listing.title}" has been permanently removed from CampusSwap for violating campus guidelines: ${reason || 'Misleading/Prohibited item'}. Please adhere to campus swap policies.`,
           type: 'SYSTEM',
           link: '/dashboard',
         },
@@ -412,8 +409,7 @@ const removeListing = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Listing "${listing.title}" has been removed from the platform and seller notified.`,
-      listing: updated,
+      message: `Listing "${listing.title}" has been permanently removed from the platform and seller notified.`,
     });
   } catch (error) {
     console.error('Admin RemoveListing Error:', error);
@@ -464,6 +460,8 @@ const getFlaggedListings = async (req, res) => {
   try {
     const flagged = await prisma.listing.findMany({
       where: {
+        status: { not: 'REMOVED' },
+        moderationStatus: { not: 'REMOVED_BY_ADMIN' },
         OR: [
           { isFlaggedByAI: true },
           { moderationStatus: 'FLAGGED_AI' },

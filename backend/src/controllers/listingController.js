@@ -370,67 +370,71 @@ const createListing = async (req, res) => {
       });
     }
 
-    // Broadcast notification to all verified students on CampusSwap
-    try {
-      const otherVerifiedUsers = await prisma.user.findMany({
-        where: {
-          id: { not: req.user.id },
-          isVerified: true,
-        },
-        select: { id: true, name: true, email: true, phone: true },
-      });
-
-      if (otherVerifiedUsers.length > 0) {
-        const notificationsData = otherVerifiedUsers.map((u) => ({
-          userId: u.id,
-          title: `🎒 New Campus Listing: ${title.substring(0, 35)}...`,
-          message: `${req.user.name} just posted a new item (${type}): "${title}". Check it out on CampusSwap now!`,
-          type: 'SYSTEM',
-          link: `/listings/${listing.id}`,
-        }));
-
-        // 1. In-app notifications
-        await prisma.notification.createMany({
-          data: notificationsData,
-          skipDuplicates: true,
-        });
-
-        // 2. Email notifications to verified students
-        const recipientEmails = otherVerifiedUsers.map((u) => u.email).filter(Boolean);
-        if (recipientEmails.length > 0) {
-          const emailSubject = `🎒 New Campus Listing: "${title}" on DIT CampusSwap`;
-          const emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
-              <h2 style="color: #881337; margin-top: 0;">DIT CampusSwap Alert</h2>
-              <p>Hey student!</p>
-              <p><strong>${req.user.name}</strong> just listed a new item in your campus marketplace:</p>
-              <div style="background-color: #f8fafc; border-left: 4px solid #881337; padding: 12px 16px; margin: 16px 0;">
-                <h3 style="margin: 0 0 6px 0; color: #0f172a;">${title}</h3>
-                <p style="margin: 0; color: #475569; font-size: 14px;"><strong>Type:</strong> ${type} | <strong>Price:</strong> ₹${price || 0}</p>
-                <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">${description.substring(0, 150)}...</p>
-              </div>
-              <p>Visit the marketplace to check it out or make an offer before someone else grabs it!</p>
-              <a href="https://dit-campus-swap.vercel.app/listings/${listing.id}" style="display: inline-block; background-color: #881337; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">View Listing</a>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 12px 0;" />
-              <p style="font-size: 11px; color: #94a3b8; margin: 0;">You received this because you are a verified DIT student on CampusSwap.</p>
-            </div>
-          `;
-
-          // Non-blocking email dispatch
-          sendEmailNotification(recipientEmails, emailSubject, emailHtml).catch((e) =>
-            console.error('Email notification dispatch error:', e.message)
-          );
-        }
-      }
-    } catch (notifErr) {
-      console.error('Broadcast notification error:', notifErr.message);
-    }
-
-    return res.status(201).json({
+    // Respond to user IMMEDIATELY in under 1 second!
+    res.status(201).json({
       success: true,
-      message: 'Listing published successfully! Notification broadcast to campus students.',
+      message: 'Listing published successfully! Notification broadcast in progress.',
       listing,
     });
+
+    // Run notifications asynchronously in background without delaying user response
+    setImmediate(async () => {
+      try {
+        const otherVerifiedUsers = await prisma.user.findMany({
+          where: {
+            id: { not: req.user.id },
+            isVerified: true,
+          },
+          select: { id: true, name: true, email: true, phone: true },
+        });
+
+        if (otherVerifiedUsers.length > 0) {
+          const notificationsData = otherVerifiedUsers.map((u) => ({
+            userId: u.id,
+            title: `🎒 New Campus Listing: ${title.substring(0, 35)}...`,
+            message: `${req.user.name} just posted a new item (${type}): "${title}". Check it out on CampusSwap now!`,
+            type: 'SYSTEM',
+            link: `/listings/${listing.id}`,
+          }));
+
+          // 1. In-app notifications
+          await prisma.notification.createMany({
+            data: notificationsData,
+            skipDuplicates: true,
+          });
+
+          // 2. Email notifications to verified students
+          const recipientEmails = otherVerifiedUsers.map((u) => u.email).filter(Boolean);
+          if (recipientEmails.length > 0) {
+            const emailSubject = `🎒 New Campus Listing: "${title}" on DIT CampusSwap`;
+            const emailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #881337; margin-top: 0;">DIT CampusSwap Alert</h2>
+                <p>Hey student!</p>
+                <p><strong>${req.user.name}</strong> just listed a new item in your campus marketplace:</p>
+                <div style="background-color: #f8fafc; border-left: 4px solid #881337; padding: 12px 16px; margin: 16px 0;">
+                  <h3 style="margin: 0 0 6px 0; color: #0f172a;">${title}</h3>
+                  <p style="margin: 0; color: #475569; font-size: 14px;"><strong>Type:</strong> ${type} | <strong>Price:</strong> ₹${price || 0}</p>
+                  <p style="margin: 6px 0 0 0; color: #64748b; font-size: 13px;">${description.substring(0, 150)}...</p>
+                </div>
+                <p>Visit the marketplace to check it out or make an offer before someone else grabs it!</p>
+                <a href="https://dit-campus-swap.vercel.app/listings/${listing.id}" style="display: inline-block; background-color: #881337; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">View Listing</a>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 12px 0;" />
+                <p style="font-size: 11px; color: #94a3b8; margin: 0;">You received this because you are a verified DIT student on CampusSwap.</p>
+              </div>
+            `;
+
+            sendEmailNotification(recipientEmails, emailSubject, emailHtml).catch((e) =>
+              console.error('Email notification dispatch error:', e.message)
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.error('Async broadcast notification error:', notifErr.message);
+      }
+    });
+
+    return;
   } catch (error) {
     console.error('CreateListing Error:', error);
     return res.status(500).json({

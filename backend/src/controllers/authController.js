@@ -236,90 +236,11 @@ const login = async (req, res) => {
       console.error('DB Student lookup error:', dbErr.message);
     }
 
-    // 3. If User doesn't exist in DB, check/provision from pre-approved roster or DIT pattern
-    let rosterRecord = null;
-    if (!user) {
-      try {
-        rosterRecord = await prisma.studentRoster.findFirst({
-          where: {
-            OR: [
-              { email: cleanInput },
-              { collegeId: loginId.toUpperCase() },
-            ],
-          },
-        });
-      } catch (rErr) {}
-
-      // Auto-validate any valid 8-digit DIT Student ERP ID or DIT College Email
-      const isEightDigitErp = /^\d{8}$/.test(loginId);
-      const isDitCollegeEmail = cleanInput.endsWith('@dypvp.edu.in') || cleanInput.endsWith('@college.edu') || cleanInput.includes('@');
-
-      if (!rosterRecord && (isEightDigitErp || isDitCollegeEmail)) {
-        const erpId = isEightDigitErp ? loginId : cleanInput.split('@')[0].toUpperCase();
-        const stdEmail = isDitCollegeEmail ? cleanInput : `${erpId.toLowerCase()}.dit@dypvp.edu.in`;
-
-        try {
-          rosterRecord = await prisma.studentRoster.create({
-            data: {
-              name: `Student (${erpId})`,
-              email: stdEmail,
-              collegeId: erpId,
-              department: 'Engineering Department',
-              year: 'Campus Student',
-              isActive: true,
-            },
-          });
-        } catch (cErr) {
-          // If already exists in roster or DB conflict
-        }
-      }
-
-      if (rosterRecord || isEightDigitErp || isDitCollegeEmail) {
-        const erpId = rosterRecord ? rosterRecord.collegeId : (isEightDigitErp ? loginId : cleanInput.split('@')[0].toUpperCase());
-        const stdEmail = rosterRecord ? rosterRecord.email : (isDitCollegeEmail ? cleanInput : `${erpId.toLowerCase()}.dit@dypvp.edu.in`);
-        const stdName = rosterRecord ? rosterRecord.name : `DIT Student (${erpId})`;
-        const defaultPhone = phone && phone.trim() ? cleanPhoneDigits(phone) : '9823456789';
-
-        try {
-          const studentPassHash = await bcrypt.hash(password, 10);
-          user = await prisma.user.create({
-            data: {
-              name: stdName,
-              email: stdEmail,
-              collegeId: erpId,
-              phone: defaultPhone,
-              password: studentPassHash,
-              role: 'STUDENT',
-              campus: rosterRecord?.department || 'Engineering Department',
-              isVerified: true,
-              hasChangedPassword: true,
-            },
-          });
-        } catch (createErr) {
-          console.error('Student auto-create DB error:', createErr.message);
-          // Fallback user object in case DB write failed
-          user = {
-            id: Math.floor(Math.random() * 89999) + 10000,
-            name: stdName,
-            email: stdEmail,
-            role: 'STUDENT',
-            collegeId: erpId,
-            phone: defaultPhone,
-            avatar: null,
-            bio: null,
-            campus: 'Engineering Department',
-            isVerified: true,
-            hasChangedPassword: true,
-            createdAt: new Date(),
-          };
-        }
-      }
-    }
-
+    // 3. Strict Student Verification Check: User MUST have an account created via verification
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'No student found with this College Email or Student ERP ID. Access is strictly for registered campus students.',
+        message: 'Your College Email or ERP ID is not verified. Please go to "Create Account / Sign Up" to verify your identity first.',
       });
     }
 
