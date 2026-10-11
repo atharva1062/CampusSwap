@@ -139,11 +139,19 @@ export default function ListingDetailPage() {
         {/* Left Column: Image Gallery & Badges */}
         <div className="lg:col-span-7 space-y-4">
           <div className="relative aspect-[4/3] bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/80 shadow-xs">
-            <img
-              src={listing.imageUrl}
-              alt={listing.title}
-              className="w-full h-full object-cover"
-            />
+            {listing.imageUrl?.match(/\.(mp4|webm|mov|ogg)($|\?)/i) || listing.imageUrl?.includes('/video/upload/') ? (
+              <video
+                src={listing.imageUrl}
+                controls
+                className="w-full h-full object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={listing.imageUrl}
+                alt={listing.title}
+                className="w-full h-full object-cover"
+              />
+            )}
             
             {/* Badges */}
             <div className="absolute top-4 left-4 flex items-center gap-2">

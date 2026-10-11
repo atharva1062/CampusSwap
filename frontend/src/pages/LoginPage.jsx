@@ -23,6 +23,8 @@ import {
   GraduationCap
 } from 'lucide-react';
 import API from '../services/api';
+import { auth } from '../services/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { DEPARTMENTS } from '../constants/departments';
@@ -68,6 +70,14 @@ export default function LoginPage() {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
 
+  // OTP Flow States (Required if phone does not exist in college roster)
+  const [needsPhoneOtp, setNeedsPhoneOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
   // Forgot / Reset Password Modal State
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [resetIdentifier, setResetIdentifier] = useState('');
@@ -107,6 +117,70 @@ export default function LoginPage() {
     }
   };
 
+  // Setup invisible Firebase Recaptcha
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {},
+      });
+    }
+    return window.recaptchaVerifier;
+  };
+
+  // Send Firebase Phone SMS OTP
+  const handleSendOtp = async () => {
+    const rawDigits = signupPhone.replace(/\D/g, '');
+    if (rawDigits.length !== 10) {
+      showToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const appVerifier = setupRecaptcha();
+      const formattedPhone = `+91${rawDigits}`;
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      showToast(`OTP SMS sent to ${formattedPhone}! Check your phone.`, 'success');
+    } catch (err) {
+      console.error('Firebase SMS Error:', err);
+      showToast(err.message || 'Failed to send SMS OTP. Please try again.', 'error');
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify Firebase Phone SMS OTP
+  const handleVerifyOtp = async () => {
+    if (!otpCode || otpCode.trim().length < 6) {
+      showToast('Please enter the 6-digit OTP received on your phone.', 'error');
+      return;
+    }
+
+    if (!confirmationResult) {
+      showToast('Please request an OTP first.', 'error');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      await confirmationResult.confirm(otpCode.trim());
+      setOtpVerified(true);
+      showToast('Phone number successfully verified! You can now create your password.', 'success');
+    } catch (err) {
+      console.error('Verify OTP Error:', err);
+      showToast('Invalid OTP. Please check the code and try again.', 'error');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   // Step 1: Verify Student ERP ID or College Email
   const handleVerifyStudentId = async (e) => {
     if (e) e.preventDefault();
@@ -120,6 +194,9 @@ export default function LoginPage() {
     setVerificationError('');
     setVerifiedStudent(null);
     setAllowManualSignup(false);
+    setNeedsPhoneOtp(false);
+    setOtpSent(false);
+    setOtpVerified(false);
 
     try {
       const res = await verifyStudent(cleanId, signupPhone);
@@ -128,15 +205,26 @@ export default function LoginPage() {
         setSignupName(res.student.name || '');
         setSignupEmail(res.student.email || (cleanId.includes('@') ? cleanId : `${cleanId.toLowerCase()}@college.edu`));
         setSignupCollegeId(res.student.collegeId || cleanId.toUpperCase());
-        if (res.student.phone) setSignupPhone(res.student.phone);
+
+        // Check if phone number is present in college roster database
+        if (res.student.phone && res.student.phone.trim().length >= 10) {
+          setSignupPhone(res.student.phone);
+          setNeedsPhoneOtp(false);
+          setOtpVerified(true);
+          showToast(`Verified! Welcome ${res.student.name}. Your phone is pre-verified. Create your password below.`, 'success');
+        } else {
+          // Phone number NOT present in database -> Mandatory input + SMS OTP required!
+          setNeedsPhoneOtp(true);
+          setOtpVerified(false);
+          showToast(`Verified ERP! Please enter your phone number to receive a verification OTP.`, 'info');
+        }
+
         if (res.student.department) {
-          // Match with DEPARTMENTS array or fallback
           const matchedDept = DEPARTMENTS.find(
             (d) => d.toLowerCase() === res.student.department.toLowerCase()
           );
           setSignupDepartment(matchedDept || res.student.department);
         }
-        showToast(`Verified! Welcome ${res.student.name}. Please create your password below.`, 'success');
       } else {
         setVerificationError(res.message || 'Verification Failed: Only students listed in the official DIT Student Roster can register.');
         setAllowManualSignup(false);
@@ -580,18 +668,84 @@ export default function LoginPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Mobile Number (Optional)
+                      Mobile Number {needsPhoneOtp ? <span className="text-rose-600 font-extrabold">* (Mandatory)</span> : <span className="text-emerald-600 font-bold">✓ (Pre-Verified)</span>}
                     </label>
                     <div className="relative">
                       <input
                         type="tel"
-                        placeholder="e.g. 9823456789"
+                        required={needsPhoneOtp}
+                        disabled={!needsPhoneOtp || otpVerified}
+                        placeholder="e.g. 9823456789 (10 digits)"
                         value={signupPhone}
                         onChange={(e) => setSignupPhone(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                        className={`w-full pl-9 pr-3 py-2 text-xs font-semibold border rounded-xl text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none ${
+                          needsPhoneOtp && !otpVerified
+                            ? 'bg-amber-50 border-amber-300'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
                       />
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
+
+                    {/* Invisible ReCAPTCHA Container for Firebase */}
+                    <div id="recaptcha-container"></div>
+
+                    {/* Phone OTP Verification Box if phone not in database */}
+                    {needsPhoneOtp && !otpVerified && (
+                      <div className="mt-2.5 p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-amber-900">
+                            Mobile Verification Required
+                          </span>
+                          {!otpSent ? (
+                            <button
+                              type="button"
+                              onClick={handleSendOtp}
+                              disabled={otpLoading || signupPhone.replace(/\D/g, '').length !== 10}
+                              className="px-2.5 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
+                            >
+                              {otpLoading ? 'Sending...' : 'Send SMS OTP'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendOtp}
+                              disabled={otpLoading}
+                              className="text-[10px] font-bold text-amber-700 underline"
+                            >
+                              Resend OTP
+                            </button>
+                          )}
+                        </div>
+
+                        {otpSent && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="Enter 6-digit OTP"
+                              value={otpCode}
+                              onChange={(e) => setOtpCode(e.target.value)}
+                              className="flex-1 px-3 py-1.5 text-xs font-mono font-bold bg-white border border-amber-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center tracking-widest"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyOtp}
+                              disabled={otpLoading || otpCode.length < 6}
+                              className="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
+                            >
+                              {otpLoading ? 'Verifying...' : 'Verify'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {otpVerified && needsPhoneOtp && (
+                      <div className="mt-1 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Mobile number verified via SMS OTP!
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -676,11 +830,15 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={signupLoading}
+                  disabled={signupLoading || (needsPhoneOtp && !otpVerified)}
                   className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50 mt-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  {signupLoading ? 'Creating Student Account...' : 'Complete Registration & Activate Account'}
+                  {signupLoading
+                    ? 'Creating Student Account...'
+                    : needsPhoneOtp && !otpVerified
+                    ? 'Verify Mobile Number to Continue'
+                    : 'Complete Registration & Activate Account'}
                 </button>
               </form>
             )}

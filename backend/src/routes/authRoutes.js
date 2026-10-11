@@ -8,6 +8,7 @@ const {
   changePassword,
   resetPassword,
   getMe,
+  getUserById,
   updateProfile,
 } = require('../controllers/authController');
 const { authenticate } = require('../middleware/authMiddleware');
@@ -19,6 +20,7 @@ router.post('/activate-student', activateStudent);
 router.post('/change-password', authenticate, changePassword);
 router.post('/reset-password', resetPassword);
 router.get('/me', authenticate, getMe);
+router.get('/user/:id', authenticate, getUserById);
 router.put('/profile', authenticate, updateProfile);
 
 module.exports = router;

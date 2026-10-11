@@ -606,6 +606,45 @@ const getMe = async (req, res) => {
 };
 
 /**
+ * Get public profile of another student (Used for chat and seller views)
+ * GET /api/auth/user/:id
+ */
+const getUserById = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    const user = await prisma.user.findUnique({
+      where: { id: targetId },
+      select: {
+        id: true,
+        name: true,
+        avatar: true,
+        campus: true,
+        collegeId: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student profile not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      profile: user,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load student profile.',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Update student profile (Name, bio, campus, phone, avatar custom URL or selection, remove avatar)
  * PUT /api/auth/profile
  */
@@ -893,5 +932,6 @@ module.exports = {
   changePassword,
   resetPassword,
   getMe,
+  getUserById,
   updateProfile,
 };

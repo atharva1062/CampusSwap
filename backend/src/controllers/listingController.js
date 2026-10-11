@@ -369,9 +369,37 @@ const createListing = async (req, res) => {
       });
     }
 
+    // Broadcast notification to all verified students on CampusSwap
+    try {
+      const otherVerifiedUsers = await prisma.user.findMany({
+        where: {
+          id: { not: req.user.id },
+          isVerified: true,
+        },
+        select: { id: true, name: true, email: true, phone: true },
+      });
+
+      if (otherVerifiedUsers.length > 0) {
+        const notificationsData = otherVerifiedUsers.map((u) => ({
+          userId: u.id,
+          title: `🎒 New Campus Listing: ${title.substring(0, 35)}...`,
+          message: `${req.user.name} just posted a new item (${type}): "${title}". Check it out on CampusSwap now!`,
+          type: 'SYSTEM',
+          link: `/listings/${listing.id}`,
+        }));
+
+        await prisma.notification.createMany({
+          data: notificationsData,
+          skipDuplicates: true,
+        });
+      }
+    } catch (notifErr) {
+      console.error('Broadcast notification error:', notifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
-      message: 'Listing published successfully!',
+      message: 'Listing published successfully! Notification broadcast to campus students.',
       listing,
     });
   } catch (error) {

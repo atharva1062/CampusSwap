@@ -12,6 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import API from '../services/api';
+import { uploadToCloudinary } from '../services/uploadService';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -72,6 +73,15 @@ export default function CreateListingPage() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      const isVideo = file.type.startsWith('video/');
+      const maxBytes = isVideo ? 250 * 1024 * 1024 : 100 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        showToast(
+          `File size exceeds maximum allowed (${isVideo ? '250MB for video' : '100MB for photos'}).`,
+          'error'
+        );
+        return;
+      }
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
       setImageUrl('');
@@ -93,48 +103,41 @@ export default function CreateListingPage() {
 
     setLoading(true);
     try {
-      let res;
+      let finalMediaUrl = imageUrl;
+
+      // Direct upload to Cloudinary for images up to 100MB and videos up to 250MB
       if (imageFile) {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('description', description);
-        formData.append('categoryId', categoryId);
-        formData.append('type', type);
-        formData.append('price', type === 'SWAP' ? 0 : price || 0);
-        if (originalPrice) formData.append('originalPrice', originalPrice);
-        formData.append('condition', condition);
-        formData.append('pickupLocation', pickupLocation);
-        if (type === 'RENT') formData.append('rentDuration', rentDuration);
-        if (type === 'SWAP') formData.append('swapPreferences', swapPreferences);
-        formData.append('image', imageFile);
-
-        res = await API.post('/listings', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      } else {
-        const payload = {
-          title,
-          description,
-          categoryId: parseInt(categoryId),
-          type,
-          price: type === 'SWAP' ? 0 : parseFloat(price) || 0,
-          originalPrice: originalPrice ? parseFloat(originalPrice) : null,
-          condition,
-          imageUrl: imageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600',
-          pickupLocation,
-          rentDuration: type === 'RENT' ? rentDuration : null,
-          swapPreferences: type === 'SWAP' ? swapPreferences : null,
-        };
-
-        res = await API.post('/listings', payload);
+        showToast('Uploading media to secure cloud storage...', 'info');
+        finalMediaUrl = await uploadToCloudinary(imageFile);
       }
+
+      if (!finalMediaUrl) {
+        finalMediaUrl =
+          'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
+      }
+
+      const payload = {
+        title,
+        description,
+        categoryId: parseInt(categoryId),
+        type,
+        price: type === 'SWAP' ? 0 : parseFloat(price) || 0,
+        originalPrice: originalPrice ? parseFloat(originalPrice) : null,
+        condition,
+        imageUrl: finalMediaUrl,
+        pickupLocation,
+        rentDuration: type === 'RENT' ? rentDuration : null,
+        swapPreferences: type === 'SWAP' ? swapPreferences : null,
+      };
+
+      const res = await API.post('/listings', payload);
 
       if (res.data.success) {
         showToast('Your item is live on CampusSwap! 🎉', 'success');
         navigate(`/listings/${res.data.listing.id}`);
       }
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to post listing.', 'error');
+      showToast(err.message || err.response?.data?.message || 'Failed to post listing.', 'error');
     } finally {
       setLoading(false);
     }
@@ -342,23 +345,27 @@ export default function CreateListingPage() {
             />
           </div>
 
-          {/* Image Upload & Preview */}
+          {/* Image & Video Upload & Preview */}
           <div className="space-y-3">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Item Photo
+              Item Photo or Video
             </label>
             
             <div className="flex flex-col sm:flex-row items-center gap-4">
               <label className="flex-1 w-full border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-slate-50">
                 <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <span className="text-xs font-bold text-slate-700 block">Click to upload photo</span>
-                <span className="text-[11px] text-slate-400">JPG, PNG, WEBP (Max 5MB)</span>
-                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                <span className="text-xs font-bold text-slate-700 block">Click to upload photo or video</span>
+                <span className="text-[11px] text-slate-400">Photos (up to 100MB) • Videos (MP4/WebM up to 250MB)</span>
+                <input type="file" accept="image/*,video/*" onChange={handleFileChange} className="hidden" />
               </label>
 
               {imagePreview && (
-                <div className="w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 shrink-0 relative">
-                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <div className="w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 shrink-0 relative bg-slate-100 flex items-center justify-center">
+                  {imageFile && imageFile.type.startsWith('video/') ? (
+                    <video src={imagePreview} className="w-full h-full object-cover" autoPlay muted loop />
+                  ) : (
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  )}
                 </div>
               )}
             </div>
