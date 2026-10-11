@@ -37,10 +37,10 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [user]);
 
-  // Poll notifications periodically when user is logged in
+  // Poll notifications periodically when user is logged in (every 60s)
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // Check every 15s
+    const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 

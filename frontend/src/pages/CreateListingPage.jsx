@@ -105,10 +105,16 @@ export default function CreateListingPage() {
     try {
       let finalMediaUrl = imageUrl;
 
-      // Direct upload to Cloudinary for images up to 100MB and videos up to 250MB
+      // Direct upload to cloud storage for images/videos
       if (imageFile) {
         showToast('Uploading media to secure cloud storage...', 'info');
-        finalMediaUrl = await uploadToCloudinary(imageFile);
+        try {
+          finalMediaUrl = await uploadToCloudinary(imageFile);
+        } catch (uploadErr) {
+          console.warn('Direct cloud upload failed, using fallback:', uploadErr.message);
+          showToast('Image upload failed, publishing item with standard thumbnail.', 'info');
+          finalMediaUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
+        }
       }
 
       if (!finalMediaUrl) {

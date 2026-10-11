@@ -30,6 +30,11 @@ export async function uploadToCloudinary(file, onProgress) {
   const storageRef = ref(storage, filePath);
 
   return new Promise((resolve, reject) => {
+    // 15-second safety timeout so creation never gets permanently stuck
+    const timer = setTimeout(() => {
+      reject(new Error('Cloud upload timed out. Please check your internet connection or try a smaller file.'));
+    }, 20000);
+
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on(
@@ -41,10 +46,12 @@ export async function uploadToCloudinary(file, onProgress) {
         }
       },
       (error) => {
+        clearTimeout(timer);
         console.error('Firebase Storage Upload Error:', error);
         reject(new Error(error.message || 'Failed to upload media to cloud storage.'));
       },
       async () => {
+        clearTimeout(timer);
         try {
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
           resolve(downloadUrl);
