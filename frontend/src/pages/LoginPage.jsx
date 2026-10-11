@@ -122,13 +122,32 @@ export default function LoginPage() {
   };
 
   // Setup invisible Firebase Recaptcha
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {},
-      });
+  const setupRecaptcha = (containerId = 'recaptcha-container') => {
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {}
+      window.recaptchaVerifier = null;
     }
+
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = '';
+    }
+
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'invisible',
+      callback: () => {},
+      'expired-callback': () => {
+        if (window.recaptchaVerifier) {
+          try {
+            window.recaptchaVerifier.clear();
+          } catch (e) {}
+          window.recaptchaVerifier = null;
+        }
+      },
+    });
+
     return window.recaptchaVerifier;
   };
 

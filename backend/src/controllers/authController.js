@@ -657,31 +657,12 @@ const verifyStudent = async (req, res) => {
       },
     });
 
-    // Support 6,000 - 10,000 official DIT Student ERP IDs & emails
-    const isEightDigitErp = /^\d{8}$/.test(cleanId);
-    const isDitCollegeEmail = cleanId.toLowerCase().endsWith('@dypvp.edu.in') || cleanId.toLowerCase().endsWith('@college.edu');
-
-    if (!rosterRecord && !existingUser && (isEightDigitErp || isDitCollegeEmail)) {
-      const erpId = isEightDigitErp ? cleanId : cleanId.split('@')[0].toUpperCase();
-      const stdEmail = isDitCollegeEmail ? cleanId.toLowerCase() : `${erpId.toLowerCase()}.dit@dypvp.edu.in`;
-      
-      rosterRecord = await prisma.studentRoster.create({
-        data: {
-          name: `Student (${erpId})`,
-          email: stdEmail,
-          collegeId: erpId,
-          department: 'Artificial Intelligence & Data Science',
-          year: 'Campus Student',
-          isActive: true,
-        },
-      }).catch(() => null);
-    }
-
+    // Strict verification: Student MUST exist in the official StudentRoster or existing Users
     if (!rosterRecord && !existingUser) {
       return res.status(404).json({
         success: false,
         verified: false,
-        message: 'Student record not found in official DIT college database. Access is strictly restricted to verified DIT students.',
+        message: 'Student record not found in official DIT college database. Access is strictly restricted to verified DIT students whose ERP ID or Email is present in the database.',
       });
     }
 
