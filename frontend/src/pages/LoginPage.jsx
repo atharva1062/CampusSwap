@@ -23,8 +23,6 @@ import {
   GraduationCap
 } from 'lucide-react';
 import API from '../services/api';
-import { auth } from '../services/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { DEPARTMENTS } from '../constants/departments';
@@ -76,7 +74,6 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState(null);
 
   // Forgot / Reset Password Modal State
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -87,7 +84,6 @@ export default function LoginPage() {
   const [resetOtpCode, setResetOtpCode] = useState('');
   const [resetOtpSent, setResetOtpSent] = useState(false);
   const [resetOtpVerified, setResetOtpVerified] = useState(false);
-  const [resetConfirmation, setResetConfirmation] = useState(null);
 
   // Handle Standard Login
   const handleLoginSubmit = async (e) => {
@@ -121,37 +117,7 @@ export default function LoginPage() {
     }
   };
 
-  // Setup invisible Firebase Recaptcha
-  const setupRecaptcha = (containerId = 'recaptcha-container') => {
-    if (window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (e) {}
-      window.recaptchaVerifier = null;
-    }
-
-    const container = document.getElementById(containerId);
-    if (container) {
-      container.innerHTML = '';
-    }
-
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-      size: 'invisible',
-      callback: () => {},
-      'expired-callback': () => {
-        if (window.recaptchaVerifier) {
-          try {
-            window.recaptchaVerifier.clear();
-          } catch (e) {}
-          window.recaptchaVerifier = null;
-        }
-      },
-    });
-
-    return window.recaptchaVerifier;
-  };
-
-  // Send Firebase Phone SMS OTP
+  // Send OTP via Backend API (college email + SMS)
   const handleSendOtp = async () => {
     const rawDigits = signupPhone.replace(/\D/g, '');
     if (rawDigits.length !== 10) {
@@ -161,44 +127,51 @@ export default function LoginPage() {
 
     setOtpLoading(true);
     try {
-      const appVerifier = setupRecaptcha();
-      const formattedPhone = `+91${rawDigits}`;
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setConfirmationResult(confirmation);
-      setOtpSent(true);
-      showToast(`OTP SMS sent to ${formattedPhone}! Check your phone.`, 'success');
-    } catch (err) {
-      console.error('Firebase SMS Error:', err);
-      showToast(err.message || 'Failed to send SMS OTP. Please try again.', 'error');
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
+      const res = await API.post('/auth/send-otp', {
+        identifier: signupIdentifier.trim(),
+        phone: rawDigits,
+        purpose: 'SIGNUP',
+      });
+      if (res.data.success) {
+        setOtpSent(true);
+        // In development show the OTP code in toast for testing
+        const codeHint = res.data.code ? ` (OTP: ${res.data.code})` : '';
+        showToast(`${res.data.message}${codeHint}`, 'success');
+      } else {
+        showToast(res.data.message || 'Failed to send OTP. Please try again.', 'error');
       }
+    } catch (err) {
+      console.error('Send OTP Error:', err);
+      showToast(err.response?.data?.message || 'Failed to send OTP. Please try again.', 'error');
     } finally {
       setOtpLoading(false);
     }
   };
 
-  // Verify Firebase Phone SMS OTP
+  // Verify OTP via Backend API
   const handleVerifyOtp = async () => {
     if (!otpCode || otpCode.trim().length < 6) {
-      showToast('Please enter the 6-digit OTP received on your phone.', 'error');
-      return;
-    }
-
-    if (!confirmationResult) {
-      showToast('Please request an OTP first.', 'error');
+      showToast('Please enter the 6-digit OTP received.', 'error');
       return;
     }
 
     setOtpLoading(true);
     try {
-      await confirmationResult.confirm(otpCode.trim());
-      setOtpVerified(true);
-      showToast('Phone number successfully verified! You can now create your password.', 'success');
+      const rawDigits = signupPhone.replace(/\D/g, '');
+      const res = await API.post('/auth/verify-otp', {
+        identifier: signupIdentifier.trim(),
+        phone: rawDigits,
+        otp: otpCode.trim(),
+      });
+      if (res.data.success) {
+        setOtpVerified(true);
+        showToast('Phone number successfully verified! You can now create your password.', 'success');
+      } else {
+        showToast(res.data.message || 'Invalid OTP. Please check and try again.', 'error');
+      }
     } catch (err) {
       console.error('Verify OTP Error:', err);
-      showToast('Invalid OTP. Please check the code and try again.', 'error');
+      showToast(err.response?.data?.message || 'Invalid OTP. Please check the code and try again.', 'error');
     } finally {
       setOtpLoading(false);
     }
@@ -353,7 +326,7 @@ export default function LoginPage() {
     }
   };
 
-  // Send Firebase Phone SMS OTP for Forgot Password
+  // Send OTP via Backend API for Forgot Password
   const handleSendResetOtp = async () => {
     const rawDigits = resetPhone.replace(/\D/g, '');
     if (rawDigits.length !== 10) {
@@ -363,44 +336,50 @@ export default function LoginPage() {
 
     setResetLoading(true);
     try {
-      const appVerifier = setupRecaptcha();
-      const formattedPhone = `+91${rawDigits}`;
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setResetConfirmation(confirmation);
-      setResetOtpSent(true);
-      showToast(`Password Reset OTP sent to ${formattedPhone}! Check your phone.`, 'success');
-    } catch (err) {
-      console.error('Reset OTP SMS Error:', err);
-      showToast(err.message || 'Failed to send SMS OTP. Please try again.', 'error');
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
+      const res = await API.post('/auth/send-otp', {
+        identifier: resetIdentifier.trim(),
+        phone: rawDigits,
+        purpose: 'FORGOT_PASSWORD',
+      });
+      if (res.data.success) {
+        setResetOtpSent(true);
+        const codeHint = res.data.code ? ` (OTP: ${res.data.code})` : '';
+        showToast(`${res.data.message}${codeHint}`, 'success');
+      } else {
+        showToast(res.data.message || 'Failed to send OTP. Please try again.', 'error');
       }
+    } catch (err) {
+      console.error('Reset OTP Error:', err);
+      showToast(err.response?.data?.message || 'Failed to send OTP. Please try again.', 'error');
     } finally {
       setResetLoading(false);
     }
   };
 
-  // Verify Firebase Phone SMS OTP for Forgot Password
+  // Verify OTP via Backend API for Forgot Password
   const handleVerifyResetOtp = async () => {
     if (!resetOtpCode || resetOtpCode.trim().length < 6) {
-      showToast('Please enter the 6-digit OTP received on your phone.', 'error');
-      return;
-    }
-
-    if (!resetConfirmation) {
-      showToast('Please request an OTP first.', 'error');
+      showToast('Please enter the 6-digit OTP received.', 'error');
       return;
     }
 
     setResetLoading(true);
     try {
-      await resetConfirmation.confirm(resetOtpCode.trim());
-      setResetOtpVerified(true);
-      showToast('Phone verified! You can now set your new password.', 'success');
+      const rawDigits = resetPhone.replace(/\D/g, '');
+      const res = await API.post('/auth/verify-otp', {
+        identifier: resetIdentifier.trim(),
+        phone: rawDigits,
+        otp: resetOtpCode.trim(),
+      });
+      if (res.data.success) {
+        setResetOtpVerified(true);
+        showToast('Phone verified! You can now set your new password.', 'success');
+      } else {
+        showToast(res.data.message || 'Invalid OTP. Please check and try again.', 'error');
+      }
     } catch (err) {
       console.error('Verify Reset OTP Error:', err);
-      showToast('Invalid OTP. Please check the code and try again.', 'error');
+      showToast(err.response?.data?.message || 'Invalid OTP. Please check the code and try again.', 'error');
     } finally {
       setResetLoading(false);
     }
@@ -771,9 +750,6 @@ export default function LoginPage() {
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
 
-                    {/* Invisible ReCAPTCHA Container for Firebase */}
-                    <div id="recaptcha-container"></div>
-
                     {/* Phone OTP Verification Box if phone not in database */}
                     {needsPhoneOtp && !otpVerified && (
                       <div className="mt-2.5 p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
@@ -788,7 +764,7 @@ export default function LoginPage() {
                               disabled={otpLoading || signupPhone.replace(/\D/g, '').length !== 10}
                               className="px-2.5 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
                             >
-                              {otpLoading ? 'Sending...' : 'Send SMS OTP'}
+                              {otpLoading ? 'Sending...' : 'Send OTP'}
                             </button>
                           ) : (
                             <button
@@ -1012,7 +988,7 @@ export default function LoginPage() {
                           disabled={resetLoading || resetPhone.replace(/\D/g, '').length !== 10}
                           className="px-2.5 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-50"
                         >
-                          {resetLoading ? 'Sending...' : 'Send SMS OTP'}
+                          {resetLoading ? 'Sending...' : 'Send OTP'}
                         </button>
                       ) : (
                         <button

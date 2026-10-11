@@ -147,9 +147,14 @@ export default function ListingDetailPage() {
               />
             ) : (
               <img
-                src={listing.imageUrl}
+                src={listing.imageUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600'}
                 alt={listing.title}
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
+                }}
               />
             )}
             

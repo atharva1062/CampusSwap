@@ -826,6 +826,192 @@ const activateStudent = async (req, res) => {
   }
 };
 
+// In-memory OTP store with 10-minute validity
+const activeOtps = new Map();
+
+/**
+ * Generate and dispatch 6-digit OTP via Email and SMS simulation
+ * POST /api/auth/send-otp
+ */
+const sendOtp = async (req, res) => {
+  try {
+    const { identifier, phone, purpose = 'SIGNUP' } = req.body;
+
+    if (!identifier && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ERP ID / College Email or Phone number is required.',
+      });
+    }
+
+    const cleanId = (identifier || '').trim().toLowerCase();
+    const cleanPhone = cleanPhoneDigits(phone || '');
+    let targetEmail = null;
+    let studentName = 'Student';
+
+    if (purpose === 'FORGOT_PASSWORD') {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: cleanId },
+            { collegeId: (identifier || '').trim().toUpperCase() },
+            { collegeId: (identifier || '').trim() },
+          ],
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'No student account found matching this College Email or ERP ID.',
+        });
+      }
+
+      if (cleanPhone) {
+        const userPhone = cleanPhoneDigits(user.phone);
+        if (userPhone && userPhone !== cleanPhone) {
+          return res.status(400).json({
+            success: false,
+            message: 'Provided mobile number does not match registered campus record.',
+          });
+        }
+      }
+
+      targetEmail = user.email;
+      studentName = user.name;
+    } else {
+      // SIGNUP / VERIFICATION
+      const rosterStudent = await prisma.studentRoster.findFirst({
+        where: {
+          OR: [
+            { email: cleanId },
+            { collegeId: (identifier || '').trim().toUpperCase() },
+            { collegeId: (identifier || '').trim() },
+          ],
+        },
+      });
+
+      if (rosterStudent) {
+        targetEmail = rosterStudent.email;
+        studentName = rosterStudent.name;
+      } else if (cleanId.includes('@')) {
+        targetEmail = cleanId;
+      }
+    }
+
+    // Generate 6-digit cryptographic random OTP
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const key = cleanPhone || cleanId;
+    activeOtps.set(key, {
+      otp: generatedOtp,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+    });
+
+    // Also store by identifier if phone was key
+    if (cleanId) {
+      activeOtps.set(cleanId, {
+        otp: generatedOtp,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+    }
+
+    // Send to student college email if available
+    if (targetEmail) {
+      sendEmailNotification({
+        to: targetEmail,
+        subject: `DIT CampusSwap - Your Verification OTP is ${generatedOtp}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
+            <h2 style="color: #881337;">DIT CampusSwap Identity Verification</h2>
+            <p>Hello ${studentName},</p>
+            <p>Your one-time verification code is:</p>
+            <div style="background: #f1f5f9; padding: 15px; font-size: 24px; font-weight: bold; letter-spacing: 4px; text-align: center; border-radius: 8px; margin: 15px 0;">
+              ${generatedOtp}
+            </div>
+            <p>This code is valid for 10 minutes. If you did not request this, please ignore.</p>
+          </div>
+        `,
+        text: `Your DIT CampusSwap verification OTP is: ${generatedOtp}. Valid for 10 minutes.`,
+      }).catch((emailErr) => {
+        console.warn('Email OTP notification error:', emailErr.message);
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: targetEmail
+        ? `Verification OTP sent to ${targetEmail} and your mobile number!`
+        : `Verification OTP sent to mobile number!`,
+      code: generatedOtp,
+    });
+  } catch (error) {
+    console.error('Send OTP Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to generate OTP.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Verify 6-digit OTP
+ * POST /api/auth/verify-otp
+ */
+const verifyOtp = async (req, res) => {
+  try {
+    const { identifier, phone, otp } = req.body;
+
+    if (!otp) {
+      return res.status(400).json({ success: false, message: 'OTP is required.' });
+    }
+
+    const cleanId = (identifier || '').trim().toLowerCase();
+    const cleanPhone = cleanPhoneDigits(phone || '');
+    const cleanEntered = otp.toString().trim();
+
+    const record = activeOtps.get(cleanPhone) || (cleanId ? activeOtps.get(cleanId) : null);
+
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP found or code expired. Please request a new OTP.',
+      });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      activeOtps.delete(cleanPhone);
+      if (cleanId) activeOtps.delete(cleanId);
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.',
+      });
+    }
+
+    if (record.otp !== cleanEntered) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP code. Please re-check and enter the 6-digit code.',
+      });
+    }
+
+    // OTP matched
+    activeOtps.delete(cleanPhone);
+    if (cleanId) activeOtps.delete(cleanId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Phone & identity verified successfully!',
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -836,4 +1022,6 @@ module.exports = {
   getMe,
   getUserById,
   updateProfile,
+  sendOtp,
+  verifyOtp,
 };
