@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const { generateToken } = require('../utils/jwt');
 const { validateCampusEmail } = require('../utils/helpers');
+const { sendEmailNotification } = require('../services/emailService');
 
 /**
  * Helper to clean phone numbers for fuzzy comparison
