@@ -943,7 +943,6 @@ const sendOtp = async (req, res) => {
       message: targetEmail
         ? `Verification OTP sent to ${targetEmail} and your mobile number!`
         : `Verification OTP sent to mobile number!`,
-      code: generatedOtp,
     });
   } catch (error) {
     console.error('Send OTP Error:', error);

@@ -134,9 +134,7 @@ export default function LoginPage() {
       });
       if (res.data.success) {
         setOtpSent(true);
-        // In development show the OTP code in toast for testing
-        const codeHint = res.data.code ? ` (OTP: ${res.data.code})` : '';
-        showToast(`${res.data.message}${codeHint}`, 'success');
+        showToast(res.data.message || 'Verification OTP sent to your registered college email and phone!', 'success');
       } else {
         showToast(res.data.message || 'Failed to send OTP. Please try again.', 'error');
       }
@@ -343,8 +341,7 @@ export default function LoginPage() {
       });
       if (res.data.success) {
         setResetOtpSent(true);
-        const codeHint = res.data.code ? ` (OTP: ${res.data.code})` : '';
-        showToast(`${res.data.message}${codeHint}`, 'success');
+        showToast(res.data.message || 'Verification OTP sent to your registered college email and phone!', 'success');
       } else {
         showToast(res.data.message || 'Failed to send OTP. Please try again.', 'error');
       }
