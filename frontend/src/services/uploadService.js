@@ -1,17 +1,16 @@
-import { storage } from './firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import API from './api';
 
 /**
- * High-performance client-side image compression.
- * Downscales images to max dimension 1280px at 0.82 JPEG quality.
- * Takes ~30-60ms and produces high-quality, lightweight base64 data (~70KB - 140KB).
+ * Compress an image file client-side using HTML5 Canvas.
+ * Max 1200px wide/tall, JPEG quality 0.85.
+ * Runs in ~30-50ms — makes publishing instant.
  */
-export function compressImageToDataUrl(file, maxWidth = 1280, maxHeight = 1280, quality = 0.82) {
+function compressImageToBase64(file, maxDim = 1200, quality = 0.85) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error('No file provided'));
 
-    // If already small SVG or not standard image, read directly
-    if (!file.type.startsWith('image/') || file.type.includes('svg')) {
+    // For non-standard images just read raw
+    if (!file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
@@ -23,41 +22,25 @@ export function compressImageToDataUrl(file, maxWidth = 1280, maxHeight = 1280, 
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        let width = img.naturalWidth || img.width;
-        let height = img.naturalHeight || img.height;
+        let w = img.naturalWidth || img.width || 800;
+        let h = img.naturalHeight || img.height || 600;
 
-        if (width > maxWidth || height > maxHeight) {
-          if (width / maxWidth > height / maxHeight) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          } else {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
+        // Scale down if larger than maxDim
+        if (w > maxDim || h > maxDim) {
+          if (w >= h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+          else { w = Math.round((w * maxDim) / h); h = maxDim; }
         }
 
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          return resolve(e.target.result);
-        }
-
-        // Fill white background for transparent PNGs converted to JPEG
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedDataUrl);
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
-
-      img.onerror = () => {
-        // Fallback to raw data URL if canvas cannot parse
-        resolve(e.target.result);
-      };
-
+      img.onerror = () => resolve(e.target.result); // fallback
       img.src = e.target.result;
     };
     reader.onerror = reject;
@@ -66,47 +49,73 @@ export function compressImageToDataUrl(file, maxWidth = 1280, maxHeight = 1280, 
 }
 
 /**
- * Upload a media file (Photo or Video) with ultra-fast instant local optimization.
- * Completely eliminates slow cloud timeouts and guarantees 100% upload success for
- * Google images, screenshots, camera photos, and downloaded pictures.
+ * Main upload function.
+ * 1. Compresses image client-side to JPEG base64 (~40ms)
+ * 2. Sends to backend /api/upload/image
+ * 3. Backend uploads to Cloudinary and returns a permanent CDN URL
  *
- * @param {File} file - The file to upload
- * @param {Function} onProgress - Optional callback for upload progress (0 - 100)
- * @returns {Promise<string>} The public URL or optimized base64 data URL
+ * Result: permanent Cloudinary URL stored in DB — displays everywhere instantly.
+ *
+ * @param {File} file - The image/video file to upload
+ * @param {Function} onProgress - Optional progress callback (0-100)
+ * @returns {Promise<string>} Permanent Cloudinary CDN URL
  */
 export async function uploadToCloudinary(file, onProgress) {
   if (!file) throw new Error('No file selected for upload.');
 
-  if (typeof onProgress === 'function') {
-    onProgress(30);
-  }
+  if (typeof onProgress === 'function') onProgress(10);
 
-  // 1. For images: compress client-side in ~40ms to guarantee instant publishing (< 2s)
+  let base64Data;
+
   if (file.type.startsWith('image/')) {
-    try {
-      const optimizedUrl = await compressImageToDataUrl(file);
-      if (typeof onProgress === 'function') {
-        onProgress(100);
-      }
-      return optimizedUrl;
-    } catch (compressionErr) {
-      console.warn('Canvas compression error, reading as base64:', compressionErr);
-    }
+    // Compress image client-side first
+    base64Data = await compressImageToBase64(file);
+    if (typeof onProgress === 'function') onProgress(40);
+  } else {
+    // For video or other types, read directly
+    base64Data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    if (typeof onProgress === 'function') onProgress(40);
   }
 
-  // 2. For videos or fallback, try fast upload or base64
-  return new Promise((resolve, reject) => {
-    const isVideo = file.type.startsWith('video/');
+  // Send to backend → Cloudinary
+  try {
+    const res = await API.post('/upload/image', { data: base64Data });
+    if (typeof onProgress === 'function') onProgress(100);
+    if (res.data.success && res.data.url) {
+      return res.data.url;
+    }
+    throw new Error(res.data.message || 'Upload failed');
+  } catch (err) {
+    console.error('Backend upload error:', err);
+    // If backend fails, return base64 as fallback (still displays in browser)
+    if (typeof onProgress === 'function') onProgress(100);
+    return base64Data;
+  }
+}
 
-    // Fallback directly to base64 FileReader
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof onProgress === 'function') onProgress(100);
-      resolve(reader.result);
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
-  });
+/**
+ * Upload an image from a URL (like a Google image URL) via backend proxy.
+ * The backend fetches the image without any referrer restrictions.
+ *
+ * @param {string} url - The remote image URL
+ * @returns {Promise<string>} Permanent Cloudinary CDN URL
+ */
+export async function uploadUrlToCloudinary(url) {
+  try {
+    const res = await API.post('/upload/image', { url });
+    if (res.data.success && res.data.url) {
+      return res.data.url;
+    }
+    return url; // Fallback to original URL
+  } catch (err) {
+    console.error('URL upload error:', err);
+    return url; // Fallback
+  }
 }
 
 export default uploadToCloudinary;

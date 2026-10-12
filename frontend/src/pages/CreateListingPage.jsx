@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import API from '../services/api';
-import { uploadToCloudinary } from '../services/uploadService';
+import { uploadToCloudinary, uploadUrlToCloudinary } from '../services/uploadService';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -103,23 +103,33 @@ export default function CreateListingPage() {
 
     setLoading(true);
     try {
-      let finalMediaUrl = imageUrl;
+      let finalMediaUrl = '';
 
-      // Direct upload to cloud storage for images/videos
+      // Case 1: User uploaded a file (screenshot / downloaded photo / camera photo)
       if (imageFile) {
-        showToast('Uploading media to secure cloud storage...', 'info');
+        showToast('Uploading photo to cloud... ⏳', 'info');
         try {
-          finalMediaUrl = await uploadToCloudinary(imageFile);
+          finalMediaUrl = await uploadToCloudinary(imageFile, (pct) => {
+            if (pct === 40) showToast('Compressing & uploading to Cloudinary...', 'info');
+          });
         } catch (uploadErr) {
-          console.warn('Direct cloud upload failed, using fallback:', uploadErr.message);
-          showToast('Image upload failed, publishing item with standard thumbnail.', 'info');
+          console.warn('Upload error:', uploadErr.message);
+          showToast('Image upload failed, using placeholder.', 'warning');
           finalMediaUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
         }
       }
-
+      // Case 2: User pasted a URL (Google image URL, web link, etc.)
+      else if (imageUrl && imageUrl.trim().startsWith('http')) {
+        showToast('Uploading image via URL to cloud... ⏳', 'info');
+        try {
+          finalMediaUrl = await uploadUrlToCloudinary(imageUrl.trim());
+        } catch (err) {
+          finalMediaUrl = imageUrl.trim(); // fallback to original URL
+        }
+      }
+      // Case 3: No image provided — use default
       if (!finalMediaUrl) {
-        finalMediaUrl =
-          'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
+        finalMediaUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600';
       }
 
       const payload = {
