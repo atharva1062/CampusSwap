@@ -24,14 +24,26 @@ function getTransporter() {
 
 /**
  * Send an email notification
- * @param {string|string[]} to - Recipient email(s)
- * @param {string} subject - Email subject
- * @param {string} html - HTML body content
+ * Accepts either (to, subject, html) positional args
+ * OR a single object { to, subject, html, text }
  */
-async function sendEmailNotification(to, subject, html) {
+async function sendEmailNotification(toOrObj, subject, html) {
+  // Support both calling styles
+  let to, subj, htmlBody, textBody;
+  if (typeof toOrObj === 'object' && toOrObj !== null && !Array.isArray(toOrObj)) {
+    to = toOrObj.to;
+    subj = toOrObj.subject;
+    htmlBody = toOrObj.html;
+    textBody = toOrObj.text;
+  } else {
+    to = toOrObj;
+    subj = subject;
+    htmlBody = html;
+  }
+
   const mailer = getTransporter();
   if (!mailer) {
-    console.log('[Email Simulation] SMTP credentials not set. Simulated sending to:', to, subject);
+    console.log('[Email Simulation] SMTP credentials not set. Would send to:', to, '| Subject:', subj);
     return false;
   }
 
@@ -40,8 +52,9 @@ async function sendEmailNotification(to, subject, html) {
     await mailer.sendMail({
       from: sender,
       to,
-      subject,
-      html,
+      subject: subj,
+      html: htmlBody,
+      text: textBody,
     });
     return true;
   } catch (err) {

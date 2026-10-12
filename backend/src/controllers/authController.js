@@ -918,22 +918,23 @@ const sendOtp = async (req, res) => {
 
     // Send to student college email if available
     if (targetEmail) {
-      sendEmailNotification({
-        to: targetEmail,
-        subject: `DIT CampusSwap - Your Verification OTP is ${generatedOtp}`,
-        html: `
+      sendEmailNotification(
+        targetEmail,
+        `DIT CampusSwap - Your Verification OTP is ${generatedOtp}`,
+        `
           <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
             <h2 style="color: #881337;">DIT CampusSwap Identity Verification</h2>
             <p>Hello ${studentName},</p>
             <p>Your one-time verification code is:</p>
-            <div style="background: #f1f5f9; padding: 15px; font-size: 24px; font-weight: bold; letter-spacing: 4px; text-align: center; border-radius: 8px; margin: 15px 0;">
+            <div style="background: #f1f5f9; padding: 15px; font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; border-radius: 8px; margin: 15px 0; color: #881337;">
               ${generatedOtp}
             </div>
-            <p>This code is valid for 10 minutes. If you did not request this, please ignore.</p>
+            <p>This code is valid for <strong>10 minutes</strong>. If you did not request this, please ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+            <p style="font-size: 12px; color: #94a3b8;">DIT CampusSwap — Official Student Marketplace, DIT Pimpri, Pune</p>
           </div>
-        `,
-        text: `Your DIT CampusSwap verification OTP is: ${generatedOtp}. Valid for 10 minutes.`,
-      }).catch((emailErr) => {
+        `
+      ).catch((emailErr) => {
         console.warn('Email OTP notification error:', emailErr.message);
       });
     }
